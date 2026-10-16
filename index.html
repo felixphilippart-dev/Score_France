@@ -1215,7 +1215,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     lane('cards').innerHTML = D.cards.map((c, i) =>
       `<div class="bar card" data-drag="cbar:${i}" style="left:${pct(c.tin)}%;width:${pct(c.tout - c.tin)}%">${i + 1}</div>` +
       `<div class="hdl" data-drag="cin:${i}" style="left:${pct(c.tin)}%"></div><div class="hdl" data-drag="cout:${i}" style="left:${pct(c.tout)}%"></div>`).join('');
-    $('#aCard').disabled = D.cards.length >= 5;
+    $('#aCard').disabled = false;
   }
   function placePlayhead(t) {
     const tr = lane('trim').getBoundingClientRect(), last = lane('cards').getBoundingClientRect(), box = tl.getBoundingClientRect();
@@ -1452,7 +1452,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
           <button type="button" class="small ghost" data-act="cardSeek" data-i="${i}">Voir le carton</button>
         </div>
       </div>`; }).join('') +
-      `<div class="row-btns"><button type="button" class="small" data-act="cardAdd" ${n >= 5 ? 'disabled' : ''}>+ Ajouter un carton à l’instant affiché (${n}/5)</button></div>
+      `<div class="row-btns"><button type="button" class="small" data-act="cardAdd">+ Ajouter un carton à l’instant affiché (${n} pour l’instant)</button></div>
        <p class="note wide">Les valeurs saisies sont mémorisées pour chaque joueur et reproposées au carton suivant. Une info vide est masquée. Une info dont le nom contient « étoile » reçoit une ★.</p>`;
   }
   function renderBoard() {
@@ -1469,7 +1469,6 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       <p class="note wide">Un retour se fait par une entrée rapide (le tableau glisse directement). Cochez « Ouverture complète » pour rejouer le bandeau et les volets d’équipe.</p>`;
   }
   function addCard(t) {
-    if (D.cards.length >= 5) return;
     D.cards.push({ libId:null, adv:false, prenom:'Prénom', nom:'Nom', num:'', code:'FRA', photo:null, cut:false, zoom:1, px:50, py:30,
       infos: LIB.infos.def.map(l => [l, '']), tin: t, tout: t + 4 });
     normalize(); renderTL(); renderCards(); save();
