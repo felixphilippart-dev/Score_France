@@ -1,6 +1,6 @@
-# Tableau de score EDF Impro
+# Tableau de score Équipe de France d’Impro
 
-Outil pour iPhone : ajoute le tableau de score animé et les cartons joueurs aux extraits de match de l'Équipe de France d'Impro, puis exporte la vidéo finale avec le son.
+Outil pour smartphone (IPhone de préférence) : ajoute le tableau de score animé et les cartons joueurs aux extraits de match de l'Équipe de France d'Impro, puis exporte la vidéo finale avec le son.
 
 Adresse : https://felixphilippart-dev.github.io/Score_France/
 
