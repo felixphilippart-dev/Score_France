@@ -32,7 +32,7 @@ body{background:var(--page);color:var(--ink);font-family:var(--ui);font-size:15p
 .safe{position:absolute;inset:0;pointer-events:none}
 .safe div{position:absolute;background:repeating-linear-gradient(45deg,rgba(255,40,60,.28) 0 1.6cqw,rgba(255,40,60,.14) 1.6cqw 3.2cqw);border:2px dashed rgba(255,90,100,.9);color:#fff;font:700 2.8cqw/1.1 var(--ui);display:flex;align-items:center;justify-content:center;text-align:center;padding:1cqw}
 .safe .t{left:0;right:0;top:0;height:11.46%}
-.safe .b{left:0;right:0;bottom:0;height:20.83%}
+.safe .b{left:0;right:0;bottom:0;height:12.5%}
 .safe .rt{right:0;width:12.04%;top:50%;height:29.17%;writing-mode:vertical-rl;font-size:2.2cqw}
 .transport{display:flex;gap:8px;align-items:center}
 .time{margin-left:auto;font:600 13px/1.2 var(--ui);font-variant-numeric:tabular-nums;color:var(--muted);text-align:right}
@@ -233,7 +233,7 @@ label.chk input{width:auto}
       <label class="wide">Reflets métalliques (ouverture)
         <select data-k="style.shine" data-num><option value="0">Aucun (plat)</option><option value="0.6">Léger</option><option value="1.8">Marqué</option></select>
       </label>
-      <label class="wide">Hauteur du tableau (vers la droite = plus bas)<input type="range" min="-300" max="400" step="10" data-k="style.dy" data-num></label>
+      <label class="wide">Hauteur du tableau (vers la droite = plus bas)<input type="range" min="-400" max="200" step="10" data-k="style.dy" data-num></label>
       <label class="chk wide"><input type="checkbox" data-k="style.safe"> Afficher les zones masquées par TikTok, Reels et Shorts</label>
       <div class="row-btns"><button type="button" class="small ghost" id="btnReset">Revenir aux réglages d’exemple</button></div>
     </fieldset>
@@ -275,11 +275,12 @@ label.chk input{width:auto}
     ],
     board: { tin:0, events:[] },
     trim: { a:0, b:null },
-    style: { pos:'bas', fit:'cover', offx:50, shine:0.6, safe:false, dy:0 }
+    style: { pos:'bas', fit:'cover', offx:50, shine:0.6, safe:false, dy:0, v2:true }
   });
   let D = DEFAULT();
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.teams && s.cards) D = Object.assign(DEFAULT(), s); } catch (e) {}
   D.style = Object.assign(DEFAULT().style, D.style);
+  if (!D.style.v2) { if (D.style.pos !== 'haut') D.style.dy = lim((+D.style.dy || 0) - 170, -400, 200); D.style.v2 = true; } // board moved 170 px lower by default (16 Oct 2026)
   D.cards.forEach(c => (c.infos || []).forEach(p => { if (p[0] === 'En EDF depuis') p[0] = '1ère Sélection France'; }));
   let saveT = null;
   function save() {
@@ -504,7 +505,7 @@ label.chk input{width:auto}
   /* =========================================================
      OVERLAY RENDERING at clip time t
      ========================================================= */
-  const layout = () => { const dy = D.style.pos === 'haut' ? lim(+D.style.dy || 0, -240, 400) : lim(+D.style.dy || 0, -400, 400); const b = D.style.pos === 'haut' ? { bug:240, strip:432, card:484 } : { bug:1308, strip:1256, card:956 }; return { bug:b.bug + dy, strip:b.strip + dy, card:b.card + dy }; };
+  const layout = () => { const dy = D.style.pos === 'haut' ? lim(+D.style.dy || 0, -240, 400) : lim(+D.style.dy || 0, -600, 200); const b = D.style.pos === 'haut' ? { bug:240, strip:432, card:484 } : { bug:1478, strip:1426, card:1126 }; return { bug:b.bug + dy, strip:b.strip + dy, card:b.card + dy }; };
 
   function drawOverlay(t) {
     o.clearRect(0, 0, W, H);
