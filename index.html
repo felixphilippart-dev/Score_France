@@ -154,7 +154,8 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
 .tprev .bugrow{flex:1;display:flex;align-items:center;height:56px;border-radius:8px;overflow:hidden;background:linear-gradient(#0D357A,#061F4A)}
 .tprev .bugrow .sw{width:58px;height:56px;border-radius:0}
 .tprev .bugrow b{font:800 italic 30px/1 var(--disp);text-transform:uppercase;padding-left:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);max-width:min(92vw,520px);background:#0E2A5C;border:1px solid var(--accent);color:var(--ink);padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.4;box-shadow:0 12px 30px #000a;z-index:20}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);transform:translateX(-50%);max-width:min(92vw,520px);background:#0E2A5C;border:1px solid var(--accent);color:var(--ink);padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.4;box-shadow:0 12px 30px #000a;z-index:20}
+.undo{position:fixed;right:calc(env(safe-area-inset-right,0px) + 16px);bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:15;padding:13px 16px;border-radius:99px;background:#0E2A5C;border:1px solid var(--accent);font-size:15px;box-shadow:0 10px 24px #000a}
 .libnote{grid-column:1/-1;font-size:13px;color:var(--ok);margin:0}
 #vid{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
 @media (max-width:900px){
@@ -235,13 +236,15 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       <label class="chk wide"><input type="checkbox" data-k="tr.on"> Commencer la vidéo par un hook, puis la transition palet</label>
       <div class="sub" id="trOpts" style="border-top:0;padding-top:0">
         <label>Début du hook (s)<input type="number" step="0.1" min="0" inputmode="decimal" data-k="tr.h" data-num></label>
-        <label>Durée du hook<select data-k="tr.len" data-num><option value="2">2 s</option><option value="3">3 s</option><option value="4">4 s</option><option value="5">5 s</option></select></label>
+        <label>Durée du hook (s)<input type="number" step="0.1" min="1" max="30" inputmode="decimal" data-k="tr.len" data-num></label>
         <div class="row-btns">
           <button type="button" class="small" data-act="hookHere">Hook à l’instant affiché</button>
           <button type="button" class="small" data-act="trPreview">▶ Voir hook + transition</button>
         </div>
-        <p class="note wide">Le hook est un passage fort de l’extrait, joué en ouverture. Le palet fait la transition, puis l’impro démarre au début de la coupe. Glissez la barre « Hook » sur la frise pour choisir le passage.</p>
+        <p class="note wide">Le hook est un passage fort de l’extrait, joué en ouverture. Le palet fait la transition, puis l’impro démarre au début de la coupe. Sur la frise, glissez la barre « Hook » pour choisir le passage, et sa poignée de droite pour changer sa durée.</p>
       </div>
+      <label class="chk wide"><input type="checkbox" data-k="tr.end"> Conclure la vidéo par l’animation palet</label>
+      <div class="row-btns" id="trEndOpts"><button type="button" class="small" data-act="endPreview">▶ Voir la fin</button></div>
     </fieldset>
 
     <fieldset>
@@ -300,6 +303,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
 </div>
 
 <div class="toast" id="toast" role="status" hidden></div>
+<button type="button" class="undo" id="btnUndo" hidden aria-label="Annuler la dernière modification">↶ Annuler</button>
 <video id="vid" playsinline webkit-playsinline preload="auto"></video>
 
 <script>
@@ -335,7 +339,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     ],
     board: { tin:0, events:[] },
     trim: { a:0, b:null },
-    tr: { on:false, h:null, len:3 },
+    tr: { on:false, h:null, len:3, end:false },
     style: { pos:'bas', fit:'cover', offx:50, shine:0.6, safe:false, dy:0, v2:true }
   });
   let D = DEFAULT();
@@ -344,8 +348,18 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   D.tr = Object.assign(DEFAULT().tr, D.tr);
   if (!D.style.v2) { if (D.style.pos !== 'haut') D.style.dy = lim((+D.style.dy || 0) - 170, -400, 200); D.style.v2 = true; } // board moved 170 px lower by default (16 Oct 2026)
   D.cards.forEach(c => (c.infos || []).forEach(p => { if (p[0] === 'En EDF depuis') p[0] = '1ère Sélection France'; }));
-  let saveT = null;
+  let saveT = null, histT = null, lastSnap = JSON.stringify(D);
+  const HIST = [];
+  function commitHistory() {  // one undo step per burst of changes
+    clearTimeout(histT); histT = null;
+    const cur = JSON.stringify(D);
+    if (cur === lastSnap) return;
+    HIST.push(lastSnap); if (HIST.length > 40) HIST.shift();
+    lastSnap = cur; updateUndo();
+  }
+  function updateUndo() { const b = document.getElementById('btnUndo'); if (b) b.hidden = !HIST.length || (typeof TAB !== 'undefined' && TAB !== 'tableau'); }
   function save() {
+    clearTimeout(histT); histT = setTimeout(commitHistory, 700);
     clearTimeout(saveT);
     saveT = setTimeout(() => {
       try { localStorage.setItem(KEY, JSON.stringify(D)); }
@@ -435,7 +449,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   function img(src) {
     if (!src) return null;
     let e = imgCache.get(src);
-    if (!e) { e = { im: new Image(), ok: false }; e.im.onload = () => e.ok = true; e.im.src = src; imgCache.set(src, e); }
+    if (!e) { e = { im: new Image(), ok: false, err: false }; e.im.onload = () => e.ok = true; e.im.onerror = () => e.err = true; e.im.src = src; imgCache.set(src, e); }
     return e.ok ? e.im : null;
   }
   const whiteCache = new Map();
@@ -931,14 +945,18 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   function ensureFaces() {
     const R = TR.R;
     if (!faceAok) {
-      const lg = img('edf-full.png');
+      // full logo with « Équipe de France d'Impro »; if that file is missing, the rooster logo in white
+      const full = img('edf-full.png'), e = imgCache.get('edf-full.png');
+      const lg = full || (e && e.err ? whiteOf('edf-marches.png') : null);
+      faceA.width = faceA.height = R * 2; const g = faceA.getContext('2d');
+      const bl = g.createRadialGradient(R * .7, R * .6, 10, R, R, R - 22); bl.addColorStop(0, '#1A84D6'); bl.addColorStop(.6, '#0A55A8'); bl.addColorStop(1, '#0A2D66');
+      faceBase(g, bl);
       if (lg) {
-        faceA.width = faceA.height = R * 2; const g = faceA.getContext('2d');
-        const bl = g.createRadialGradient(R * .7, R * .6, 10, R, R, R - 22); bl.addColorStop(0, '#1A84D6'); bl.addColorStop(.6, '#0A55A8'); bl.addColorStop(1, '#0A2D66');
-        faceBase(g, bl);
-        const lh = 420, lw = lh * lg.width / lg.height; g.drawImage(lg, R - lw / 2, R - lh / 2, lw, lh);
-        faceShine(g); faceAok = true;
+        const bw = full ? 420 * lg.width / lg.height : 340, bh = full ? 420 : 340, sc = Math.min(bw / lg.width, bh / lg.height);
+        g.drawImage(lg, R - lg.width * sc / 2, R - lg.height * sc / 2, lg.width * sc, lg.height * sc);
+        faceAok = true;
       }
+      faceShine(g);
     }
     const t2 = D.teams[1], src = teamLogoSrc(t2), lg = teamLogo(t2), key = `${t2.col}|${t2.white}|${src ? src.length + src.slice(-30) : ''}|${!!lg}`;
     if (key !== faceBkey) {
@@ -976,7 +994,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     ctx.restore();
   }
   function panelPath(l, r) { const SK = TR.SK; ctx.beginPath(); ctx.moveTo(l + SK, 0); ctx.lineTo(r + SK, 0); ctx.lineTo(r - SK, H); ctx.lineTo(l - SK, H); ctx.closePath(); }
-  function stinger(s) {
+  function stinger(s, withReplay = true) {
     ensureFaces(); if (!floorC) floorC = buildFloor();
     const R = TR.R, SK = TR.SK, span = W + 2 * SK, land = TR.LAND;
     let shake = 0;
@@ -990,7 +1008,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       ctx.save(); ctx.translate(0, shake);
       ctx.drawImage(floorC, 0, -20, W, H + 40);
       const exitDx = -x * span;
-      replayText(exitDx);
+      if (withReplay) replayText(exitDx);
       const fp = clamp((s - .1) / (land - .1));
       if (s >= .1) {
         const height = 1 - fp * fp, spin = 1 - Math.pow(1 - fp, 1.5);
@@ -998,10 +1016,14 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
         let sc = 1 + height * .75, th, phi = (1 - spin) * -2.6;
         if (s < land) th = (1 - spin) * 5 * Math.PI;
         else { const k = s - land; th = .5 * Math.exp(-k * 9) * Math.sin(k * 34); sc *= 1 + .05 * Math.exp(-k * 14) * Math.sin(k * 30 + 1.2); }
-        ctx.save(); ctx.globalAlpha = .34 * (1 - height * .6);
-        if ('filter' in ctx) ctx.filter = `blur(${10 + height * 40}px)`;
-        ctx.fillStyle = '#3a2c1c'; ctx.beginPath(); ctx.ellipse(cx + 26 + height * 140, cy + 40 + height * 220, R * sc * .98, R * sc * .9, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
+        {  // soft shadow on the floor (gradient instead of a blur filter: much lighter on the phone)
+          const rx = R * sc * .98, soft = 1 + .12 + height * .35, a0 = .34 * (1 - height * .6);
+          ctx.save(); ctx.translate(cx + 26 + height * 140, cy + 40 + height * 220); ctx.scale(1, .9 / .98);
+          const sg = ctx.createRadialGradient(0, 0, rx * (1 - (soft - 1) * 1.6), 0, 0, rx * soft);
+          sg.addColorStop(0, `rgba(58,44,28,${a0})`); sg.addColorStop(1, 'rgba(58,44,28,0)');
+          ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, rx * soft, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
         if (s > land && s < land + .6) {          // dust pushed out from under the puck
           const k = (s - land) / .6;
           flecks.forEach((f, i) => {
@@ -1039,7 +1061,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     fetch('palet.wav').then(r => r.arrayBuffer()).then(b => new Promise((res, rej) => actx.decodeAudioData(b, res, rej)))
       .then(buf => { hitBuf = buf; }).catch(() => { hitLoading = false; });
   }
-  function sfx() {
+  function sfx(withExit = true) {
     ensureAudio(); if (!actx) return;
     try {
       if (!sfxG) { sfxG = actx.createGain(); sfxG.gain.value = .9; sfxG.connect(actx.destination); if (aDest) sfxG.connect(aDest); }
@@ -1067,7 +1089,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
         os.type = 'sine'; os.frequency.setValueAtTime(150, hit); os.frequency.exponentialRampToValueAtTime(60, hit + .14);
         og.gain.setValueAtTime(.35, hit); og.gain.exponentialRampToValueAtTime(.0001, hit + .18);
         os.connect(og).connect(out); os.start(hit); os.stop(hit + .2);
-        wh(t0 + OUTT(), .36, .22, 2200, 400);
+        if (withExit) wh(t0 + OUTT(), .36, .22, 2200, 400);
         return;
       }
       const click = noise(.04), hp = actx.createBiquadFilter(), cg = actx.createGain();
@@ -1080,20 +1102,31 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       os.type = 'sine'; os.frequency.setValueAtTime(190, hit); os.frequency.exponentialRampToValueAtTime(70, hit + .14);
       og.gain.setValueAtTime(.7, hit); og.gain.exponentialRampToValueAtTime(.0001, hit + .2);
       os.connect(og).connect(out); os.start(hit); os.stop(hit + .22);
-      wh(t0 + OUTT(), .36, .22, 2200, 400);
+      if (withExit) wh(t0 + OUTT(), .36, .22, 2200, 400);
     } catch (e) {}
   }
   // sequence: hook (clip h → h+len) → puck (video cut to the start of the trim, paused while covered) → the impro
   let SEQ = null;
-  const hookLen = () => lim(+D.tr.len || 3, 1, 6);
+  const hookLen = () => lim(+D.tr.len || 3, 1, Math.max(1, Math.min(30, dur || 30)));
   const hookStart = () => lim(D.tr.h == null ? A() : +D.tr.h, 0, Math.max(0, dur - hookLen()));
   function startSequence() {
     SEQ = { phase:'hook', s0:0, cut:false, resumed:false };
     vid.currentTime = hookStart();
     return vid.play();
   }
+  const END_HOLD = .45;  // the settled puck stays on screen this long at the very end
   function stepSequence() {
+    // outro: the puck covers the end of the clip and the video ends on it
+    if (!SEQ && D.tr.end && clipReady && !vid.paused && vid.currentTime >= B() - TR.CUT + .06) {
+      SEQ = { phase:'end', s0: performance.now(), paused:false, held:false }; sfx(false);
+    }
     if (!SEQ) return null;
+    if (SEQ.phase === 'end') {
+      const s = (performance.now() - SEQ.s0) / 1000;
+      if (!SEQ.paused && vid.currentTime >= B() - .02) { SEQ.paused = true; vid.pause(); }
+      if (!SEQ.held && s >= OUTT() + END_HOLD) { SEQ.held = true; if (!SEQ.paused) { SEQ.paused = true; vid.pause(); } if (rec) rec.state !== 'inactive' && rec.stop(); }
+      return Math.min(s, OUTT());
+    }
     if (SEQ.phase === 'hook' && vid.currentTime >= hookStart() + hookLen() - TR.CUT) { SEQ.phase = 'sting'; SEQ.s0 = performance.now(); sfx(); }
     if (SEQ.phase !== 'sting') return null;
     const s = (performance.now() - SEQ.s0) / 1000;
@@ -1128,7 +1161,12 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
      ========================================================= */
   const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   const fmtD = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
-  function frame() {
+  let lastDraw = 0, uiTick = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    // while recording, draw at a steady 30 fps (the recorder captures 30 fps): half the work, no uneven frames
+    if (rec && now - lastDraw < 28) return;
+    lastDraw = now;
     const t = clipReady ? vid.currentTime : 0;
     const stS = stepSequence();
     const inHook = SEQ && !SEQ.cut;
@@ -1139,15 +1177,18 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     drawBackground();
     if (!inHook) {
       drawOverlay(t);
-      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 10; ctx.drawImage(ov, 0, 0); ctx.restore();
+      // the soft shadow only around the graphics, not over the whole 1080×1920 frame (much lighter)
+      const L = layout(), y0 = Math.max(0, Math.min(L.card, L.strip, L.bug) - 50), y1 = Math.min(H, Math.max(L.card + 300, L.strip + 52, L.bug + 192) + 70);
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 10;
+      ctx.drawImage(ov, 0, y0, W, y1 - y0, 0, y0, W, y1 - y0); ctx.restore();
     }
     if (stS != null) stinger(stS);
     if (EDIT && TAB === 'admin') drawEditorPreview();
+    if (rec && (uiTick++ % 8)) return;   // during an export, refresh the page controls only now and then
     $('#time').innerHTML = `<b>${fmtD(t)}</b> / ${fmt(dur)} · coupe ${fmtD(B() - A())}`;
     placePlayhead(t);
     updateToggleBtn(t);
     if (rec) $('#barFill').style.width = (inHook ? 0 : clamp((t - A()) / ((B() - A()) || 1)) * 100).toFixed(1) + '%';
-    requestAnimationFrame(frame);
   }
 
   /* =========================================================
@@ -1170,7 +1211,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     D.board.events.forEach((e, i) => { mks += `<div class="mk ${e.type}" data-drag="ev:${i}" style="left:${pct(e.t)}%" title="${e.type === 'out' ? 'Sortie' : 'Retour'}"><i>${e.type === 'out' ? '▼' : '▲'}</i></div>`; });
     lane('board').innerHTML = segs + mks;
     $('#hookLane').hidden = !D.tr.on;
-    lane('hook').innerHTML = D.tr.on ? `<div class="bar hook" data-drag="hbar" style="left:${pct(hookStart())}%;width:${pct(hookLen())}%">HOOK</div>` : '';
+    lane('hook').innerHTML = D.tr.on ? `<div class="bar hook" data-drag="hbar" style="left:${pct(hookStart())}%;width:${pct(hookLen())}%">HOOK</div><div class="hdl" data-drag="hlen" style="left:${pct(hookStart() + hookLen())}%" title="Fin du hook"></div>` : '';
     lane('cards').innerHTML = D.cards.map((c, i) =>
       `<div class="bar card" data-drag="cbar:${i}" style="left:${pct(c.tin)}%;width:${pct(c.tout - c.tin)}%">${i + 1}</div>` +
       `<div class="hdl" data-drag="cin:${i}" style="left:${pct(c.tin)}%"></div><div class="hdl" data-drag="cout:${i}" style="left:${pct(c.tout)}%"></div>`).join('');
@@ -1203,6 +1244,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     const t = r1(timeAt(e.clientX)), k = drag.kind;
     if (k === 'seek') { seek(t); return; }
     if (k === 'hbar') { D.tr.h = r1(lim(drag.h + (t - drag.t0), 0, Math.max(0, dur - hookLen()))); seek(D.tr.h); renderTL(); return; }
+    if (k === 'hlen') { D.tr.len = r1(lim(t - hookStart(), 1, 30)); seek(hookStart() + hookLen() - .05); renderTL(); return; }
     if (k === 'trimA') D.trim.a = Math.min(t, B() - .5);
     else if (k === 'trimB') D.trim.b = Math.max(t, A() + .5);
     else if (k === 'tin') D.board.tin = t;
@@ -1214,7 +1256,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     else seek(Math.max(0, t - .05));
     renderTL();
   });
-  const endDrag = () => { if (!drag) return; const k = drag.kind; drag = null; if (k === 'hbar') { bindStatic(); save(); return; } if (k !== 'seek') { normalize(); renderTL(); renderCards(); renderBoard(); save(); } };
+  const endDrag = () => { if (!drag) return; const k = drag.kind; drag = null; if (k === 'hbar' || k === 'hlen') { bindStatic(); save(); return; } if (k !== 'seek') { normalize(); renderTL(); renderCards(); renderBoard(); save(); } };
   tl.addEventListener('pointerup', endDrag); tl.addEventListener('pointercancel', endDrag);
   function seek(t) { if (!clipReady) return; SEQ = null; vid.pause(); vid.currentTime = lim(t, 0, dur); }
 
@@ -1246,7 +1288,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     });
     form.querySelectorAll('[data-style]').forEach(b => b.setAttribute('aria-pressed', D.style[b.dataset.style] === b.dataset.v));
     $('#safe').hidden = !D.style.safe;
-    $('#trOpts').hidden = !D.tr.on;
+    $('#trOpts').hidden = !D.tr.on; $('#trEndOpts').hidden = !D.tr.end;
   }
   form.addEventListener('input', onField);
   form.addEventListener('change', onField);
@@ -1292,6 +1334,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     const act = b.dataset.act; if (!act) return;
     const i = +b.dataset.i;
     if (act === 'hookHere') { D.tr.h = r1(lim(vid.currentTime || 0, 0, Math.max(0, dur - hookLen()))); bindStatic(); renderTL(); save(); return; }
+    if (act === 'endPreview') { if (!clipReady || rec) return; ensureAudio(); SEQ = null; vid.currentTime = Math.max(A(), B() - 2.5); vid.play().catch(() => {}); return; }
     if (act === 'trPreview') { if (!clipReady || rec) return; ensureAudio(); startSequence().catch(() => {}); return; }
     if (act === 'plus1') {
       const c = D.cards[i], j = +b.dataset.j, n = parseInt(String(c.infos[j][1]).replace(/\s/g, ''), 10);
@@ -1490,7 +1533,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   let TAB = 'tableau', EDIT = null, toastT = null;
   function flash(h) { const t = $('#toast'); t.innerHTML = h; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); }
   function setTab(t) {
-    TAB = t;
+    TAB = t; updateUndo();
     $('#tabTableau').hidden = t !== 'tableau'; $('#tabAdmin').hidden = t !== 'admin';
     document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === t)));
     if (t === 'admin') renderAdmin(); else { renderTeams(); renderCards(); }
@@ -1745,6 +1788,15 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     } catch (e) { flash('Impossible de lire ce fichier : ' + esc(e.message || e)); }
   }
 
+  function undo() {
+    if (histT) commitHistory();
+    if (!HIST.length || rec) return;
+    SEQ = null;
+    D = JSON.parse(HIST.pop()); lastSnap = JSON.stringify(D);
+    try { localStorage.setItem(KEY, lastSnap); } catch (e) {}
+    normalize(); renderAll(); updateUndo(); flash('Dernière modification annulée.');
+  }
+  $('#btnUndo').onclick = undo;
   function renderAll() { bindStatic(); renderTeams(); renderCards(); renderBoard(); renderTL(); if (TAB === 'admin') renderAdmin(); }
 
   /* =========================================================
@@ -1755,7 +1807,8 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   $('#btnPlay').onclick = () => {
     if (!clipReady || rec) return;
     ensureAudio();
-    if (SEQ) { SEQ = null; vid.pause(); return; }
+    if (SEQ && SEQ.phase !== 'end') { SEQ = null; vid.pause(); return; }
+    SEQ = null;
     if (vid.paused) { if (vid.currentTime >= B() - .05 || vid.currentTime < A()) vid.currentTime = A(); vid.play().catch(() => {}); } else vid.pause();
   };
   $('#btnRestart').onclick = () => { if (!clipReady || rec) return; ensureAudio(); if (D.tr.on) { startSequence().catch(() => {}); return; } SEQ = null; vid.currentTime = A(); vid.play().catch(() => {}); };
@@ -1841,7 +1894,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     let p;
     if (D.tr.on) p = startSequence(); else { vid.currentTime = A(); p = vid.play(); }
     if (p && p.catch) p.catch(err => { setMsg('La lecture a été bloquée par le navigateur (' + esc(err.name || err) + '). Touchez à nouveau « Exporter ».'); cancelled = true; r.state !== 'inactive' && r.stop(); });
-    vid.addEventListener('ended', function onEnd() { if (SEQ) return; vid.removeEventListener('ended', onEnd); r.state !== 'inactive' && r.stop(); });
+    vid.addEventListener('ended', function onEnd() { if (SEQ || D.tr.end) return; vid.removeEventListener('ended', onEnd); r.state !== 'inactive' && r.stop(); });
     setMsg('Export en cours… la vidéo défile en temps réel. Gardez l’écran allumé.');
   };
   $('#btnCancel').onclick = () => { if (!rec) return; cancelled = true; SEQ = null; vid.pause(); rec.state !== 'inactive' && rec.stop(); };
@@ -1896,6 +1949,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       if (!t.code) t.code = t.libId === 'fra' ? 'FRA' : teamCode(t);
     });
     D.cards.forEach(c => { if (c.libId === undefined) c.libId = null; if (c.libId && !libPlayer(c.libId)) c.libId = null; });
+    lastSnap = JSON.stringify(D);
     ['edf-marches.png', 'edf-full.png', 'pas.png', ...D.teams.map(teamLogoSrc), ...D.cards.map(c => (cardPhoto(c) || {}).src)].forEach(img);
     try {
       await Promise.all([F(800, 56, 1), F(800, 34, 1), F(600, 30, 1), F(700, 26), F(600, 40, 1), F(800, 76), F(700, 28), F(600, 34), F(700, 20), F(800, 44, 1), F(800, 84, 1)].map(f => document.fonts.load(f)));
