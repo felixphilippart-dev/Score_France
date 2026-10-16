@@ -114,6 +114,7 @@ label.chk input{width:auto}
 .g2{grid-template-columns:1fr 1fr}
 .g3{grid-template-columns:1fr 1fr 1fr}
 .row-btns{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.row-btns:empty{display:none}
 .evlist{grid-column:1/-1;display:flex;flex-direction:column;gap:8px}
 .ev{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;background:var(--page);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 .ev .dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px}
@@ -124,6 +125,36 @@ label.chk input{width:auto}
 .empty{color:var(--muted);font-size:13px;margin:0}
 .paste{border:2px dashed var(--line);border-radius:8px;padding:10px;font-size:13px;color:var(--muted);text-align:center;outline:none;-webkit-user-select:text;user-select:text}
 .paste:focus{border-color:var(--accent);color:var(--ink)}
+.tabs{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:5px}
+.tabs button{flex:1;font:800 italic 21px/1 var(--disp);text-transform:uppercase;letter-spacing:.03em;border:0;background:transparent;padding:12px;color:var(--muted)}
+.tabs button[aria-pressed=true]{background:var(--accent);color:#06112A}
+.list{display:flex;flex-direction:column;gap:6px}
+.item{display:grid;grid-template-columns:46px 58px 1fr;align-items:center;gap:10px;text-align:left;padding:6px 10px;background:var(--page);border-radius:10px}
+.thumb{width:46px;height:46px;border-radius:8px;background:linear-gradient(#0D357A,#061F4A);overflow:hidden;display:block}
+.thumb img{width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block}
+.sw{width:46px;height:46px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.sw img{max-width:80%;max-height:80%;display:block}
+.sw img.wh{filter:brightness(0) invert(1)}
+.sw.big{width:110px;height:110px;border-radius:12px}
+.item .num{font:800 italic 25px/1 var(--disp);white-space:nowrap;color:var(--accent);text-align:center}
+.item .nm{font:600 15px/1.25 var(--ui)}
+.item small{color:var(--orange);font-weight:700;margin-left:6px;text-transform:uppercase;font-size:11px;letter-spacing:.08em}
+.catlist{display:flex;flex-direction:column;gap:6px}
+.cat{display:grid;grid-template-columns:minmax(0,1fr) 108px 44px;gap:6px;align-items:center}
+.info-row{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) 52px;gap:8px;align-items:center}
+.info-row button{padding:9px 0}
+.edprev{display:flex;flex-direction:column;gap:6px}
+.edprev canvas{width:100%;height:auto;border-radius:8px;touch-action:none;background:#000;display:block;cursor:grab}
+.btnlike{display:inline-flex;flex-direction:row;align-items:center;justify-content:center;font:600 13px/1 var(--ui);letter-spacing:0;text-transform:none;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}
+details.more{grid-column:1/-1;border-top:1px dashed var(--line);padding-top:10px}
+details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weight:600}
+.sub2{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px 14px;margin-top:12px}
+.tprev{grid-column:1/-1;display:flex;gap:14px;align-items:center}
+.tprev .bugrow{flex:1;display:flex;align-items:center;height:56px;border-radius:8px;overflow:hidden;background:linear-gradient(#0D357A,#061F4A)}
+.tprev .bugrow .sw{width:58px;height:56px;border-radius:0}
+.tprev .bugrow b{font:800 italic 30px/1 var(--disp);text-transform:uppercase;padding-left:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);max-width:min(92vw,520px);background:#0E2A5C;border:1px solid var(--accent);color:var(--ink);padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.4;box-shadow:0 12px 30px #000a;z-index:20}
+.libnote{grid-column:1/-1;font-size:13px;color:var(--ok);margin:0}
 #vid{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
 @media (max-width:900px){
   .app{flex-direction:column;align-items:stretch;padding-inline:16px}
@@ -182,6 +213,8 @@ label.chk input{width:auto}
   <form class="panel" id="form" autocomplete="off">
     <h1>Tableau de score <span>EDF</span></h1>
     <p class="lede">Choisissez un extrait, remplissez le match et les cartons, placez les moments sur la frise, puis exportez.</p>
+    <div class="tabs"><button type="button" data-tab="tableau" aria-pressed="true">Tableau</button><button type="button" data-tab="admin" aria-pressed="false">Admin</button></div>
+    <div id="tabTableau" style="display:contents">
 
     <fieldset>
       <legend>Extrait vidéo</legend>
@@ -224,22 +257,33 @@ label.chk input{width:auto}
       <legend>Tableau : entrées et sorties</legend>
     </fieldset>
 
-    <fieldset>
-      <legend>Aperçu et style</legend>
-      <div class="wide seg" role="group" aria-label="Position du tableau">
-        <button type="button" data-style="pos" data-v="bas">Tableau en bas</button>
-        <button type="button" data-style="pos" data-v="haut">Tableau en haut</button>
+    </div>
+    <div id="tabAdmin" style="display:contents" hidden>
+      <fieldset id="admEditor" hidden></fieldset>
+      <div id="admLists" style="display:contents">
+        <fieldset id="admPlayers"></fieldset>
+        <fieldset id="admTeams"></fieldset>
+        <fieldset id="admInfos"></fieldset>
+        <fieldset id="admBackup"></fieldset>
+        <fieldset>
+          <legend>Style du tableau</legend>
+          <div class="wide seg" role="group" aria-label="Position du tableau">
+            <button type="button" data-style="pos" data-v="bas">Tableau en bas</button>
+            <button type="button" data-style="pos" data-v="haut">Tableau en haut</button>
+          </div>
+          <label class="wide">Reflets métalliques (ouverture)
+            <select data-k="style.shine" data-num><option value="0">Aucun (plat)</option><option value="0.6">Léger</option><option value="1.8">Marqué</option></select>
+          </label>
+          <label class="wide">Hauteur du tableau (vers la droite = plus bas)<input type="range" min="-400" max="200" step="10" data-k="style.dy" data-num></label>
+          <label class="chk wide"><input type="checkbox" data-k="style.safe"> Afficher les zones masquées par TikTok, Reels et Shorts</label>
+          <div class="row-btns"><button type="button" class="small ghost" id="btnReset">Revenir aux réglages d’exemple</button></div>
+        </fieldset>
       </div>
-      <label class="wide">Reflets métalliques (ouverture)
-        <select data-k="style.shine" data-num><option value="0">Aucun (plat)</option><option value="0.6">Léger</option><option value="1.8">Marqué</option></select>
-      </label>
-      <label class="wide">Hauteur du tableau (vers la droite = plus bas)<input type="range" min="-400" max="200" step="10" data-k="style.dy" data-num></label>
-      <label class="chk wide"><input type="checkbox" data-k="style.safe"> Afficher les zones masquées par TikTok, Reels et Shorts</label>
-      <div class="row-btns"><button type="button" class="small ghost" id="btnReset">Revenir aux réglages d’exemple</button></div>
-    </fieldset>
+    </div>
   </form>
 </div>
 
+<div class="toast" id="toast" role="status" hidden></div>
 <video id="vid" playsinline webkit-playsinline preload="auto"></video>
 
 <script>
@@ -266,8 +310,8 @@ label.chk input{width:auto}
     impro: { titre:'Mimosa', cat:'Libre', nat:'M', nbj:'2', ichrono:'3:00', irun:false },
     match: { mt:'2', chrono:'27:00', run:true },
     teams: [
-      { name:'France', score:'5', pen:'1', col:'#0079c8', logo:'edf-marches.png', white:true },
-      { name:'Paris All Stars', score:'3', pen:'1', col:'#f28039', logo:'pas.png', white:true }
+      { libId:'fra', name:'France', code:'FRA', score:'5', pen:'1', col:'#0079c8', logo:null, white:true },
+      { libId:null, name:'Paris All Stars', code:'PAS', score:'3', pen:'1', col:'#f28039', logo:'pas.png', white:true }
     ],
     cards: [
       { prenom:'Igor', nom:'Potoczny', num:'5', code:'FRA', photo:null, cut:false, zoom:1, px:50, py:20,
@@ -301,6 +345,72 @@ label.chk input{width:auto}
   function setP(path, v) { const ks = path.split('.'); const last = ks.pop(); const obj = ks.reduce((a, k) => a[k], D); obj[last] = v; }
 
   /* =========================================================
+     LIBRARY — players, teams and info labels, kept on the phone (IndexedDB)
+     ========================================================= */
+  const FRA_DEF = { id:'fra', code:'FRA', nom:'France', couleur:'#0079C8', blanc:true, logo:'edf-marches.png' };
+  const INFO_DEF = () => ({
+    cat: [['Sélections','nombre'],['Ville','texte'],['1ère Sélection France','annee'],['Étoiles','nombre'],['Botte secrète','texte'],['Impros jouées','nombre'],['Taille','texte'],['Pénalités persos','nombre']],
+    def: ['Sélections','Ville','1ère Sélection France','Étoiles']
+  });
+  let LIB = { teams:[{ ...FRA_DEF }], players:[], infos: INFO_DEF() };
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const idb = (() => {
+    let p = null;
+    const open = () => p || (p = new Promise((res, rej) => {
+      const r = indexedDB.open('edf-score', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+    const run = (mode, fn) => open().then(db => new Promise((res, rej) => {
+      const tx = db.transaction('kv', mode), q = fn(tx.objectStore('kv'));
+      tx.oncomplete = () => res(q && q.result); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+    }));
+    return { get: k => run('readonly', st => st.get(k)), set: (k, v) => run('readwrite', st => st.put(v, k)) };
+  })();
+  function fixLib() {
+    if (!Array.isArray(LIB.teams)) LIB.teams = [];
+    if (!Array.isArray(LIB.players)) LIB.players = [];
+    if (!LIB.infos || !Array.isArray(LIB.infos.cat)) LIB.infos = INFO_DEF();
+    if (!LIB.teams.some(t => t.id === 'fra')) LIB.teams.unshift({ ...FRA_DEF });
+    LIB.players.forEach(pl => { if (!pl.last) pl.last = {}; });
+  }
+  async function loadLib() { try { const v = await idb.get('lib'); if (v && v.teams) LIB = v; } catch (e) {} fixLib(); }
+  let libT = null;
+  function saveLib() {
+    clearTimeout(libT);
+    libT = setTimeout(() => idb.set('lib', LIB).catch(e => setMsg('Impossible d’enregistrer la bibliothèque sur ce téléphone (' + esc((e && e.name) || e) + ').')), 200);
+  }
+  const libTeam = id => id ? LIB.teams.find(t => t.id === id) : null;
+  const libPlayer = id => id ? LIB.players.find(x => x.id === id) : null;
+  const infoType = l => (LIB.infos.cat.find(c => c[0] === l) || [0, 'texte'])[1];
+  const guessType = l => /s[ée]lection|[ée]toile|jou[ée]|p[ée]nalit|nombre|victoire|match/i.test(l) ? 'nombre' : /ann[ée]e|depuis|1[èe]re/i.test(l) ? 'annee' : 'texte';
+  const sortedPlayers = () => [...LIB.players].sort((a, b) => ((a.role === 'coach') - (b.role === 'coach')) || ((parseInt(a.numero, 10) || 99) - (parseInt(b.numero, 10) || 99)) || (a.nom || '').localeCompare(b.nom || '', 'fr'));
+  const playerLabel = pl => pl.role === 'coach' ? `C · ${pl.prenom} ${pl.nom} (coach)` : `${pl.numero || '–'} · ${pl.prenom} ${pl.nom}`;
+  const teamCode = t => U(t.code || '').trim() || U(t.name || '').replace(/[^A-ZÀ-Ý]/g, '').slice(0, 3);
+
+  // copy a library entry into the current video (the video keeps its own copy, editable)
+  function teamFromLib(i, id) {
+    const lt = libTeam(id); if (!lt) return;
+    Object.assign(D.teams[i], { libId: id, name: lt.nom, code: lt.code, col: lt.couleur, white: !!lt.blanc, logo: null });
+  }
+  function cardFromLib(card, id) {
+    const pl = libPlayer(id); if (!pl) return;
+    const coach = pl.role === 'coach';
+    Object.assign(card, { libId: id, adv: false, prenom: pl.prenom, nom: pl.nom, num: coach ? 'C' : pl.numero, code: coach ? 'COACH' : 'FRA',
+      photo: null, cut: false, zoom: pl.zoom ?? 1, px: pl.px ?? 50, py: pl.py ?? 30 });
+    card.infos = card.infos.map(([l]) => [l, pl.last[l] || '']);
+  }
+  function cardAdverse(card) {
+    Object.assign(card, { libId: null, adv: true, prenom: 'Prénom', nom: 'Nom', num: '', code: teamCode(D.teams[1]), photo: null, cut: false, zoom: 1, px: 50, py: 30 });
+    card.infos = card.infos.map(([l]) => [l, '']);
+  }
+  function remember(card, j) {
+    const pl = libPlayer(card.libId); if (!pl) return;
+    const [l, v] = card.infos[j]; if (!l) return;
+    pl.last[l] = v; saveLib();
+  }
+
+  /* =========================================================
      IMAGES — cache, white silhouettes, automatic clean-up
      ========================================================= */
   const imgCache = new Map();
@@ -318,7 +428,13 @@ label.chk input{width:auto}
     const g = c.getContext('2d'); g.drawImage(im, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
     whiteCache.set(src, c); return c;
   }
-  const teamLogo = t => t.white ? whiteOf(t.logo) : img(t.logo);
+  const teamLogoSrc = t => t.logo || (libTeam(t.libId) || {}).logo || null;
+  const teamLogo = t => t.white ? whiteOf(teamLogoSrc(t)) : img(teamLogoSrc(t));
+  function cardPhoto(card) {
+    if (card.photo) return { src: card.photo, cut: !!card.cut };
+    const pl = libPlayer(card.libId);
+    return pl && pl.photo ? { src: pl.photo, cut: !!pl.cut } : null;
+  }
   const loadImg = src => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = src; });
   const fileToImg = f => new Promise(r => { const fr = new FileReader(); fr.onload = async () => r(await loadImg(fr.result)); fr.onerror = () => r(null); fr.readAsDataURL(f); });
   function hasAlpha(im) {
@@ -368,8 +484,9 @@ label.chk input{width:auto}
   }
   const photoCache = new Map();
   function photoCanvas(card) {
-    const im = img(card.photo); if (!im) return null;
-    const key = `${card.photo.length}|${card.photo.slice(-40)}|${card.zoom}|${card.px}|${card.py}|${card.cut}`;
+    const ph = cardPhoto(card); if (!ph) return null;
+    const im = img(ph.src); if (!im) return null;
+    const key = `${ph.src.length}|${ph.src.slice(-40)}|${card.zoom}|${card.px}|${card.py}`;
     let c = photoCache.get(key); if (c) return c;
     c = document.createElement('canvas'); c.width = 250; c.height = 204;
     const g = c.getContext('2d');
@@ -673,22 +790,35 @@ label.chk input{width:auto}
     parts.forEach(p => { text(p[0], x, by + (p[2] || 0), p[1], col, { ls }); x += measure(p[0], p[1], ls); });
   }
 
+  const hexRGB = h => { const m = /^#?([0-9a-f]{6})$/i.exec(String(h || '').trim()); const n = m ? parseInt(m[1], 16) : 0x777777; return [n >> 16, (n >> 8) & 255, n & 255]; };
+  const lumi = ([r, g, b]) => { const f = c => { c /= 255; return c <= .03928 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4); }; return .2126 * f(r) + .7152 * f(g) + .0722 * f(b); };
+  function cardStyle(h) {
+    let c = hexRGB(h);
+    const rgb = (a, k = 1) => `rgb(${a.map(v => Math.round(v * k)).join(',')})`;
+    if (lumi(c) > .3) return { a: rgb(c), b: rgb(c, .86), ink:'#0B1A33', sub:'rgba(11,26,51,.75)', code: C.rouge, wm: .14 };
+    let k = 0; while (lumi(c) > .16 && k < 40) { c = c.map(v => v * .94); k++; }
+    return { a: rgb(c), b: rgb(c, .7), ink:'#fff', sub:'rgba(255,255,255,.8)', code: rgb(c), wm: .12 };
+  }
+  const FRA_CARD = { a: C.navy, b: C.navy2, ink:'#fff', sub:'#CFE3FF', code: C.rouge, wm: .09 };
   function drawCard(y, frac, c, card) {
-    const badge = img('edf-marches.png');
+    const adv = !!card.adv, t2 = D.teams[1];
+    const cs = adv ? cardStyle(t2.col) : FRA_CARD;
+    const badge = adv ? teamLogo(t2) : img('edf-marches.png');
+    const wmark = adv ? img(teamLogoSrc(t2)) : badge;
     o.save(); o.beginPath();
     const h = 300 * frac;
     o.rect(GX, D.style.pos === 'haut' ? y : y + 300 - h, GW, h); o.clip();
-    const g = o.createLinearGradient(GX, y, GX + GW, y + 150); g.addColorStop(0, C.navy); g.addColorStop(.7, C.navy2);
+    const g = o.createLinearGradient(GX, y, GX + GW, y + 150); g.addColorStop(0, cs.a); g.addColorStop(.7, cs.b);
     o.fillStyle = g; o.fillRect(GX, y, GW, 204);
     o.save(); o.beginPath(); o.rect(GX, y, GW, 204); o.clip();
-    o.globalAlpha = .09; contain(badge, GX + 590, y - 50, 300, 370); o.globalAlpha = 1;
-    const ph = photoCanvas(card), pp = P(c, .2, .6);
+    o.globalAlpha = cs.wm; contain(wmark, GX + 590, y - 50, 300, 370); o.globalAlpha = 1;
+    const ph = photoCanvas(card), pp = P(c, .2, .6), phInfo = cardPhoto(card);
     if (ph) {
       o.save(); o.globalAlpha = pp;
-      if (card.cut) { o.shadowColor = 'rgba(0,0,0,.55)'; o.shadowBlur = 18; o.shadowOffsetX = 6; }
+      if (phInfo && phInfo.cut) { o.shadowColor = 'rgba(0,0,0,.55)'; o.shadowBlur = 18; o.shadowOffsetX = 6; }
       o.drawImage(ph, GX - 50 * (1 - pp), y); o.restore();
     }
-    contain(badge, GX + 12, y + 10, 66, 80);
+    if (adv) contain(badge, GX + 12, y + 12, 84, 84); else contain(badge, GX + 12, y + 10, 66, 80);
     o.restore();
     const bp = clamp((c - .25) / .48);
     if (bp > 0) {
@@ -697,15 +827,15 @@ label.chk input{width:auto}
       o.beginPath(); o.moveTo(0, 0); o.lineTo(84, 0); o.lineTo(84, 69); o.lineTo(42, 96); o.lineTo(0, 69); o.closePath();
       o.fillStyle = '#fff'; o.fill();
       text(String(card.num || ''), 42, 54, F(800, 58, 1), C.navy, { align:'center', maxW:76 });
-      text(U(card.code), 42, 73, F(700, 15), C.rouge, { align:'center', ls:1.8 });
+      text(U(card.code), 42, 73, F(700, 15), cs.code, { align:'center', ls:1.8, maxW:76 });
       o.restore();
     }
     const np = P(c, .3, .52);
     o.save(); o.globalAlpha = np; o.translate(40 * (1 - np), 0);
     const nx = GX + 356, maxW = GW - 24 - 356;
-    text(U(card.prenom), nx, y + 76, F(600, 40, 1), '#CFE3FF', { ls:1.6, maxW });
+    text(U(card.prenom), nx, y + 76, F(600, 40, 1), cs.sub, { ls:1.6, maxW });
     let fs = 84; while (fs > 40 && measure(U(card.nom), F(800, fs, 1), .8) > maxW) fs -= 2;
-    text(U(card.nom), nx, y + 152, F(800, fs, 1), '#fff', { ls:.8, maxW });
+    text(U(card.nom), nx, y + 152, F(800, fs, 1), cs.ink, { ls:.8, maxW });
     o.restore();
     o.fillStyle = C.argent; o.fillRect(GX, y + 204, GW, 96);
     const cols = (card.infos || []).filter(p => (p[1] || '').trim());
@@ -755,6 +885,7 @@ label.chk input{width:auto}
     drawBackground();
     drawOverlay(t);
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 10; ctx.drawImage(ov, 0, 0); ctx.restore();
+    if (EDIT && TAB === 'admin') drawEditorPreview();
     $('#time').innerHTML = `<b>${fmtD(t)}</b> / ${fmt(dur)} · coupe ${fmtD(B() - A())}`;
     placePlayhead(t);
     updateToggleBtn(t);
@@ -863,7 +994,25 @@ label.chk input{width:auto}
     if (!k) return;
     let v = el.type === 'checkbox' ? el.checked : el.value;
     if ('num' in el.dataset) v = v === '' ? 0 : +v;
+    const mL = /^cards\.(\d+)\.infos\.(\d+)\.0$/.exec(k);
+    if (mL) {  // info label chosen from the menu
+      if (e.type !== 'change') return;
+      const c = D.cards[+mL[1]], j = +mL[2];
+      let lab = v;
+      if (lab === '__other') {
+        lab = (prompt('Nom de la nouvelle info (par exemple « Club »)') || '').trim();
+        if (!lab) { renderCards(); return; }
+        if (!LIB.infos.cat.some(x => x[0] === lab)) { LIB.infos.cat.push([lab, guessType(lab)]); saveLib(); }
+      }
+      const pl = libPlayer(c.libId);
+      c.infos[j] = [lab, pl ? (pl.last[lab] || '') : (lab ? c.infos[j][1] : '')];
+      save(); renderCards(); return;
+    }
     setP(k, v);
+    const mV = /^cards\.(\d+)\.infos\.(\d+)\.1$/.exec(k);
+    if (mV) remember(D.cards[+mV[1]], +mV[2]);
+    const mN = /^cards\.(\d+)\.(num|prenom|nom)$/.exec(k);
+    if (mN) refreshCardHead(+mN[1]);  // update in place: never re-render while typing
     if (/^cards\.\d+\.(tin|tout)$/.test(k) || /^board\./.test(k)) { if (e.type === 'change') { normalize(); renderTL(); renderCards(); renderBoard(); } }
     if (k === 'style.safe') $('#safe').hidden = !D.style.safe;
     save();
@@ -871,8 +1020,28 @@ label.chk input{width:auto}
   form.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.style) { D.style[b.dataset.style] = b.dataset.v; bindStatic(); save(); return; }
+    if (b.dataset.tab) { EDIT = null; setTab(b.dataset.tab); return; }
+    if (b.dataset.adm) { adminAct(b); return; }
     const act = b.dataset.act; if (!act) return;
     const i = +b.dataset.i;
+    if (act === 'plus1') {
+      const c = D.cards[i], j = +b.dataset.j, n = parseInt(String(c.infos[j][1]).replace(/\s/g, ''), 10);
+      c.infos[j][1] = String((isNaN(n) ? 0 : n) + 1); remember(c, j); save(); renderCards(); return;
+    }
+    if (act === 'numToLib') { const c = D.cards[i], pl = libPlayer(c.libId); if (pl) { pl.numero = String(c.num); saveLib(); flash(`Numéro ${esc(c.num)} enregistré pour ${esc(pl.prenom)} ${esc(pl.nom)}.`); } renderCards(); return; }
+    if (act === 'photoToLib') {
+      const c = D.cards[i], pl = libPlayer(c.libId); if (!pl) return;
+      if (c.photo) { pl.photo = c.photo; pl.cut = !!c.cut; c.photo = null; c.cut = false; }
+      Object.assign(pl, { zoom: c.zoom, px: c.px, py: c.py }); saveLib(); save();
+      flash(`Photo et cadrage enregistrés pour ${esc(pl.prenom)} ${esc(pl.nom)}.`); renderCards(); return;
+    }
+    if (act === 'photoReset') { const c = D.cards[i], pl = libPlayer(c.libId); c.photo = null; c.cut = false; if (pl) Object.assign(c, { zoom: pl.zoom, px: pl.px, py: pl.py }); save(); renderCards(); return; }
+    if (act === 'teamToLib') {
+      const tm = D.teams[i], lt = libTeam(tm.libId); if (!lt) return;
+      Object.assign(lt, { nom: tm.name, code: U(tm.code || lt.code), couleur: tm.col, blanc: !!tm.white });
+      if (tm.logo) { lt.logo = tm.logo; tm.logo = null; }
+      saveLib(); save(); flash(`${esc(lt.nom)} mis à jour dans la bibliothèque.`); renderTeams(); return;
+    }
     const t = r1(vid.currentTime || 0);
     if (act === 'cardDel') { D.cards.splice(i, 1); }
     else if (act === 'cardIn') { const c = D.cards[i]; const len = c.tout - c.tin; c.tin = t; c.tout = t + len; }
@@ -885,36 +1054,82 @@ label.chk input{width:auto}
     normalize(); renderTL(); renderCards(); renderBoard(); save();
   });
 
+  const opt = (v, label, sel) => `<option value="${esc(v)}" ${sel ? 'selected' : ''}>${esc(label)}</option>`;
   function renderTeams() {
-    $('#teamsFs').innerHTML = '<legend>Équipes</legend>' + D.teams.map((tm, i) => `
-      <div class="sub">
-        <h3>${i === 0 ? 'Équipe 1' : 'Équipe 2'}</h3>
-        <label class="wide">Nom<input data-k="teams.${i}.name" value="${esc(tm.name)}"></label>
+    $('#teamsFs').innerHTML = '<legend>Équipes</legend>' + D.teams.map((tm, i) => {
+      const lt = libTeam(tm.libId);
+      return `<div class="sub">
+        <h3>${i === 0 ? 'Équipe 1' : 'Équipe adverse'}</h3>
+        <label class="wide">Équipe<select data-tpick="${i}">
+          ${lt ? '' : opt('', `${tm.name} (pour cette vidéo)`, true)}
+          ${LIB.teams.map(t => opt(t.id, t.nom, t.id === tm.libId)).join('')}
+          ${opt('__new', '+ Nouvelle équipe…', false)}
+        </select></label>
         <label>Score<input data-k="teams.${i}.score" value="${esc(tm.score)}" inputmode="numeric"></label>
         <label>Pénalités<select data-k="teams.${i}.pen">${[0,1,2,3].map(n => `<option ${String(tm.pen) === String(n) ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-        <label>Couleur<input type="color" data-k="teams.${i}.col" value="${esc(tm.col)}"></label>
-        <label>Logo<input type="file" accept="image/*" data-logo="${i}"></label>
-        <div class="paste wide" contenteditable="true" data-paste-logo="${i}" aria-label="Coller un logo">Ou touchez ici puis « Coller » un logo</div>
-        <label class="chk wide"><input type="checkbox" data-k="teams.${i}.white" ${tm.white ? 'checked' : ''}> Logo en blanc (sinon couleurs d’origine)</label>
-      </div>`).join('') + '<p class="note wide">Le fond uni d’un logo (blanc, par exemple) est retiré automatiquement, et les marges sont recadrées.</p>';
+        <details class="more"><summary>Modifier pour cette vidéo (nom, couleur, logo)</summary><div class="sub2">
+          <label class="wide">Nom<input data-k="teams.${i}.name" value="${esc(tm.name)}"></label>
+          <label>Code<input data-k="teams.${i}.code" value="${esc(tm.code || '')}" maxlength="4"></label>
+          <label>Couleur<input type="color" data-k="teams.${i}.col" value="${esc(tm.col)}"></label>
+          <label class="wide">Logo<input type="file" accept="image/*" data-logo="${i}"></label>
+          <div class="paste wide" contenteditable="true" data-paste-logo="${i}" aria-label="Coller un logo">Ou touchez ici puis « Coller » un logo</div>
+          <label class="chk wide"><input type="checkbox" data-k="teams.${i}.white" ${tm.white ? 'checked' : ''}> Logo en blanc (sinon couleurs d’origine)</label>
+          ${lt ? `<div class="row-btns"><button type="button" class="small" data-act="teamToLib" data-i="${i}">Enregistrer dans la bibliothèque</button></div>` : ''}
+        </div></details>
+      </div>`;
+    }).join('');
+  }
+  function labelOptions(cur) {
+    const cat = LIB.infos.cat.map(c => c[0]);
+    if (cur && !cat.includes(cur)) cat.push(cur);
+    return opt('', '— (aucune)', !cur) + cat.map(l => opt(l, l, l === cur)).join('') + opt('__other', 'Autre…', false);
+  }
+  function numBtn(c, i) {
+    const pl = libPlayer(c.libId); if (!pl) return '';
+    const usual = pl.role === 'coach' ? 'C' : String(pl.numero);
+    return String(c.num) !== usual ? `<button type="button" class="small" data-act="numToLib" data-i="${i}">Enregistrer « ${esc(c.num)} » comme numéro habituel</button>` : '';
+  }
+  function refreshCardHead(i) {
+    const c = D.cards[i], h = document.querySelector(`[data-chead="${i}"]`), nb = document.querySelector(`[data-numbtn="${i}"]`);
+    if (h) h.textContent = `${c.prenom} ${c.nom}`;
+    if (nb) nb.innerHTML = numBtn(c, i);
   }
   function renderCards() {
-    const n = D.cards.length;
-    $('#cardsFs').innerHTML = '<legend>Cartons joueurs</legend>' + (n ? '' : '<p class="empty wide">Aucun carton. Placez la vidéo au bon moment puis ajoutez-en un.</p>') + D.cards.map((c, i) => `
-      <div class="sub">
-        <h3><span><span class="tag">${i + 1}</span>${esc(c.prenom)} ${esc(c.nom)}</span><button type="button" class="small ghost" data-act="cardDel" data-i="${i}">Supprimer</button></h3>
+    const n = D.cards.length, t2 = D.teams[1];
+    $('#cardsFs').innerHTML = '<legend>Cartons joueurs</legend>' + (n ? '' : '<p class="empty wide">Aucun carton. Placez la vidéo au bon moment puis ajoutez-en un.</p>') + D.cards.map((c, i) => {
+      const pl = libPlayer(c.libId);
+      return `<div class="sub">
+        <h3><span><span class="tag">${i + 1}</span><span data-chead="${i}">${esc(c.prenom)} ${esc(c.nom)}</span></span><button type="button" class="small ghost" data-act="cardDel" data-i="${i}">Supprimer</button></h3>
+        <label class="wide">Joueur<select data-pick="${i}">
+          ${!pl && !c.adv ? opt('', `${c.prenom} ${c.nom} (pour cette vidéo)`, true) : ''}
+          ${sortedPlayers().map(x => opt(x.id, playerLabel(x), x.id === c.libId)).join('')}
+          ${opt('__adv', `Joueur adverse (${t2.name})`, !!c.adv)}
+          ${opt('__new', '+ Nouveau joueur…', false)}
+        </select></label>
+        ${c.adv ? `<p class="note wide">Carton aux couleurs de l’équipe adverse (${esc(t2.name)}). Saisissez le nom, le numéro, la photo et 2 ou 3 infos.</p>` : ''}
         <label>Prénom<input data-k="cards.${i}.prenom" value="${esc(c.prenom)}"></label>
         <label>Nom<input data-k="cards.${i}.nom" value="${esc(c.nom)}"></label>
         <label>Numéro<input data-k="cards.${i}.num" value="${esc(c.num)}" inputmode="numeric"></label>
-        <label>Code équipe<input data-k="cards.${i}.code" value="${esc(c.code)}" maxlength="4"></label>
-        <label class="wide">Photo<input type="file" accept="image/*" data-photo="${i}"></label>
+        <label>Code équipe<input data-k="cards.${i}.code" value="${esc(c.code)}" maxlength="5"></label>
+        <div class="row-btns" data-numbtn="${i}">${numBtn(c, i)}</div>
+        <label class="wide">Photo pour cette vidéo<input type="file" accept="image/*" data-photo="${i}"></label>
         <div class="paste wide" contenteditable="true" data-paste="${i}" aria-label="Coller une photo">Ou touchez ici puis « Coller » une photo détourée</div>
         <div class="g3">
           <label>Zoom<input type="range" min="0.7" max="3" step="0.05" data-k="cards.${i}.zoom" data-num value="${c.zoom}"></label>
           <label>Horizontal<input type="range" min="0" max="100" data-k="cards.${i}.px" data-num value="${c.px}"></label>
           <label>Vertical<input type="range" min="0" max="100" data-k="cards.${i}.py" data-num value="${c.py}"></label>
         </div>
-        ${c.infos.map((p, j) => `<div class="g2"><label>Info ${j + 1}<input data-k="cards.${i}.infos.${j}.0" value="${esc(p[0])}"></label><label>Valeur<input data-k="cards.${i}.infos.${j}.1" value="${esc(p[1])}"></label></div>`).join('')}
+        ${pl ? `<div class="row-btns">
+          <button type="button" class="small" data-act="photoToLib" data-i="${i}">${c.photo ? 'Enregistrer photo et cadrage dans la bibliothèque' : 'Enregistrer ce cadrage dans la bibliothèque'}</button>
+          ${c.photo ? `<button type="button" class="small ghost" data-act="photoReset" data-i="${i}">Reprendre la photo habituelle</button>` : ''}
+        </div>` : ''}
+        ${c.infos.map((pr, j) => {
+          const ty = infoType(pr[0]);
+          return `<div class="info-row">
+            <select data-k="cards.${i}.infos.${j}.0" aria-label="Info ${j + 1}">${labelOptions(pr[0])}</select>
+            <input data-k="cards.${i}.infos.${j}.1" value="${esc(pr[1])}" aria-label="Valeur de l’info ${j + 1}" ${ty !== 'texte' ? 'inputmode="numeric"' : ''}>
+            ${ty === 'nombre' ? `<button type="button" class="small" data-act="plus1" data-i="${i}" data-j="${j}" aria-label="Ajouter 1">+1</button>` : '<span></span>'}
+          </div>`; }).join('')}
         <div class="g2">
           <label>Entrée (s)<input type="number" step="0.1" min="0" inputmode="decimal" data-k="cards.${i}.tin" data-num value="${c.tin}"></label>
           <label>Sortie (s)<input type="number" step="0.1" min="0" inputmode="decimal" data-k="cards.${i}.tout" data-num value="${c.tout}"></label>
@@ -924,9 +1139,9 @@ label.chk input{width:auto}
           <button type="button" class="small" data-act="cardOut" data-i="${i}">Sortie ici</button>
           <button type="button" class="small ghost" data-act="cardSeek" data-i="${i}">Voir le carton</button>
         </div>
-      </div>`).join('') +
+      </div>`; }).join('') +
       `<div class="row-btns"><button type="button" class="small" data-act="cardAdd" ${n >= 5 ? 'disabled' : ''}>+ Ajouter un carton à l’instant affiché (${n}/5)</button></div>
-       <p class="note wide">Une info dont le nom contient « étoile » reçoit une ★. Laissez une valeur vide pour masquer la colonne. Une photo sans fond (détourée sur iPhone) s’affiche sans fondu, avec une ombre.</p>`;
+       <p class="note wide">Les valeurs saisies sont mémorisées pour chaque joueur et reproposées au carton suivant. Une info vide est masquée. Une info dont le nom contient « étoile » reçoit une ★.</p>`;
   }
   function renderBoard() {
     const evs = D.board.events;
@@ -943,15 +1158,33 @@ label.chk input{width:auto}
   }
   function addCard(t) {
     if (D.cards.length >= 5) return;
-    const prev = D.cards[D.cards.length - 1];
-    D.cards.push({ prenom:'Prénom', nom:'Nom', num:'', code:'FRA', photo:null, cut:false, zoom:1, px:50, py:20,
-      infos: prev ? prev.infos.map(p => [p[0], '']) : [['Sélections',''],['Ville',''],['1ère Sélection France',''],['Étoiles','']],
-      tin: t, tout: t + 4 });
+    D.cards.push({ libId:null, adv:false, prenom:'Prénom', nom:'Nom', num:'', code:'FRA', photo:null, cut:false, zoom:1, px:50, py:30,
+      infos: LIB.infos.def.map(l => [l, '']), tin: t, tout: t + 4 });
     normalize(); renderTL(); renderCards(); save();
   }
   // image inputs (team logos and card photos)
   form.addEventListener('change', async e => {
     const el = e.target;
+    if (el.dataset.tpick != null) {
+      const i = +el.dataset.tpick, v = el.value;
+      if (v === '__new') { openTeamEditor(null, { slot: i }); return; }
+      if (v) { teamFromLib(i, v); if (i === 1) D.cards.forEach(c => { if (c.adv) c.code = teamCode(D.teams[1]); }); save(); renderTeams(); renderCards(); }
+      return;
+    }
+    if (el.dataset.pick != null) {
+      const i = +el.dataset.pick, v = el.value, c = D.cards[i];
+      if (v === '__new') { openPlayerEditor(null, { card: i }); return; }
+      if (v === '__adv') cardAdverse(c); else if (v) cardFromLib(c, v);
+      save(); renderCards(); return;
+    }
+    if (el.dataset.ephoto != null && el.files[0] && EDIT) {
+      const im = await fileToImg(el.files[0]); if (!im) return;
+      const ph = processPhoto(im); Object.assign(EDIT.d, { photo: ph.src, cut: ph.cut, zoom: 1, px: 50, py: 30 }); syncEditorSliders(); return;
+    }
+    if (el.dataset.elogo != null && el.files[0] && EDIT) {
+      const im = await fileToImg(el.files[0]); if (!im) return;
+      EDIT.d.logo = processLogo(im); updateTeamPrev(); return;
+    }
     if (el.dataset.logo != null && el.files[0]) {
       const im = await fileToImg(el.files[0]); if (!im) return;
       D.teams[+el.dataset.logo].logo = processLogo(im); save();
@@ -970,13 +1203,280 @@ label.chk input{width:auto}
     const it = [...(e.clipboardData ? e.clipboardData.items : [])].find(x => x.type.startsWith('image/'));
     if (!it) { z.textContent = 'Aucune image dans le presse-papiers. Copiez d’abord la photo.'; return; }
     const im = await fileToImg(it.getAsFile()); if (!im) return;
+    if (z.dataset.pasteE != null && EDIT) {
+      if (z.dataset.pasteE === 'photo') { const ph = processPhoto(im); Object.assign(EDIT.d, { photo: ph.src, cut: ph.cut, zoom: 1, px: 50, py: 30 }); syncEditorSliders(); z.textContent = ph.cut ? 'Photo détourée collée ✓' : 'Photo collée ✓'; }
+      else { EDIT.d.logo = processLogo(im); updateTeamPrev(); z.textContent = 'Logo collé ✓'; }
+      z.blur(); return;
+    }
     if (z.dataset.paste != null) { const p = processPhoto(im), c = D.cards[+z.dataset.paste]; c.photo = p.src; c.cut = p.cut; z.textContent = p.cut ? 'Photo détourée collée ✓' : 'Photo collée ✓'; }
     else { D.teams[+z.dataset.pasteLogo].logo = processLogo(im); z.textContent = 'Logo collé ✓'; }
     z.blur(); save();
   });
   $('#btnReset').onclick = () => { const keepTrim = D.trim; D = DEFAULT(); D.trim = keepTrim; autoTiming(); renderAll(); save(); };
 
-  function renderAll() { bindStatic(); renderTeams(); renderCards(); renderBoard(); renderTL(); }
+
+  /* =========================================================
+     ADMIN — library lists, editors, backup
+     ========================================================= */
+  let TAB = 'tableau', EDIT = null, toastT = null;
+  function flash(h) { const t = $('#toast'); t.innerHTML = h; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); }
+  function setTab(t) {
+    TAB = t;
+    $('#tabTableau').hidden = t !== 'tableau'; $('#tabAdmin').hidden = t !== 'admin';
+    document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === t)));
+    if (t === 'admin') renderAdmin(); else { renderTeams(); renderCards(); }
+  }
+  const plural = (n, a, b) => `${n} ${n > 1 ? b : a}`;
+  function renderAdmin() {
+    $('#admEditor').hidden = !EDIT; $('#admLists').hidden = !!EDIT;
+    if (EDIT) { renderEditor(); return; }
+    const pls = sortedPlayers();
+    $('#admPlayers').innerHTML = `<legend>Joueurs de l’équipe de France</legend>
+      <div class="list wide">${pls.length ? pls.map(x => `<button type="button" class="item" data-adm="editPlayer" data-id="${x.id}">
+        <span class="thumb">${x.photo ? `<img src="${esc(x.photo)}" alt="">` : ''}</span>
+        <span class="num">${esc(x.role === 'coach' ? 'C' : x.numero)}</span>
+        <span class="nm">${esc(x.prenom)} ${esc(x.nom)}${x.role === 'coach' ? '<small>Coach</small>' : ''}</span></button>`).join('')
+        : '<p class="empty">Aucun joueur pour l’instant. Restaurez votre bibliothèque (en bas de cette page) ou ajoutez un joueur.</p>'}</div>
+      <div class="row-btns"><button type="button" class="small" data-adm="newPlayer">+ Nouveau joueur</button></div>`;
+    $('#admTeams').innerHTML = `<legend>Équipes</legend>
+      <div class="list wide">${LIB.teams.map(t => `<button type="button" class="item" data-adm="editTeam" data-id="${t.id}">
+        <span class="sw" style="background:${esc(t.couleur)}">${t.logo ? `<img src="${esc(t.logo)}" alt="" class="${t.blanc ? 'wh' : ''}">` : ''}</span>
+        <span class="num">${esc(t.code)}</span><span class="nm">${esc(t.nom)}</span></button>`).join('')}</div>
+      <div class="row-btns"><button type="button" class="small" data-adm="newTeam">+ Nouvelle équipe</button></div>`;
+    const I = LIB.infos;
+    $('#admInfos').innerHTML = `<legend>Infos des cartons</legend>
+      <p class="note wide">Les 4 infos d’un nouveau carton :</p>
+      ${I.def.map((l, j) => `<label>Info ${j + 1}<select data-adef="${j}">${opt('', '— (aucune)', !l)}${I.cat.map(c => opt(c[0], c[0], c[0] === l)).join('')}</select></label>`).join('')}
+      <p class="note wide">Toutes les infos proposées dans les menus des cartons. « Nombre » ajoute le bouton +1.</p>
+      <div class="wide catlist">${I.cat.map((c, j) => `<div class="cat">
+        <input data-acat="${j}" value="${esc(c[0])}" aria-label="Nom de l’info">
+        <select data-atype="${j}">${opt('nombre', 'Nombre', c[1] === 'nombre')}${opt('texte', 'Texte', c[1] === 'texte')}${opt('annee', 'Année', c[1] === 'annee')}</select>
+        <button type="button" class="small ghost" data-adm="catDel" data-j="${j}" aria-label="Supprimer cette info">✕</button></div>`).join('')}</div>
+      <div class="row-btns"><button type="button" class="small" data-adm="catAdd">+ Ajouter une info</button></div>`;
+    $('#admBackup').innerHTML = `<legend>Sauvegarde</legend>
+      <p class="note wide">${plural(LIB.players.length, 'joueur', 'joueurs')} et ${plural(LIB.teams.length, 'équipe', 'équipes')}, enregistrés sur ce téléphone. Gardez une copie dans iCloud Drive (« Enregistrer dans Fichiers »), et envoyez-la au coach par AirDrop ou par message.</p>
+      <div class="row-btns">
+        <button type="button" class="primary small" data-adm="backup">Sauvegarder ma bibliothèque</button>
+        <label class="btnlike">Restaurer depuis un fichier…<input type="file" data-restore hidden></label>
+      </div>`;
+  }
+
+  function openPlayerEditor(id, ret) {
+    const x = libPlayer(id);
+    EDIT = { kind:'player', isNew: !x, ret, d: x ? JSON.parse(JSON.stringify(x))
+      : { id: uid(), prenom:'', nom:'', numero:'', role:'joueur', photo:null, cut:false, zoom:1, px:50, py:30, last:{} } };
+    setTab('admin'); $('#admEditor').scrollIntoView({ block:'start' });
+  }
+  function openTeamEditor(id, ret) {
+    const t = libTeam(id);
+    EDIT = { kind:'team', isNew: !t, ret, d: t ? { ...t } : { id: uid(), code:'', nom:'', couleur:'#E3232F', blanc:false, logo:null } };
+    setTab('admin'); $('#admEditor').scrollIntoView({ block:'start' });
+  }
+  function renderEditor() {
+    const E = EDIT, d = E.d, box = $('#admEditor');
+    const btns = `<div class="row-btns">
+      <button type="button" class="primary small" data-adm="edSave">Enregistrer</button>
+      <button type="button" class="small" data-adm="edCancel">Annuler</button>
+      ${E.isNew || d.id === 'fra' ? '' : `<button type="button" class="small ghost" data-adm="edDel">Supprimer ${E.kind === 'player' ? 'ce joueur' : 'cette équipe'}</button>`}</div>`;
+    if (E.kind === 'player') box.innerHTML = `<legend>${E.isNew ? 'Nouveau joueur' : 'Modifier le joueur'}</legend>
+      <label>Prénom<input data-e="prenom" value="${esc(d.prenom)}"></label>
+      <label>Nom<input data-e="nom" value="${esc(d.nom)}"></label>
+      <label>Numéro<input data-e="numero" value="${esc(d.numero)}" inputmode="numeric"></label>
+      <label>Rôle<select data-e="role">${opt('joueur', 'Joueur', d.role !== 'coach')}${opt('coach', 'Coach (C)', d.role === 'coach')}</select></label>
+      <label class="wide">Photo<input type="file" accept="image/*" data-ephoto></label>
+      <div class="paste wide" contenteditable="true" data-paste-e="photo" aria-label="Coller une photo">Ou touchez ici puis « Coller » une photo détourée</div>
+      <div class="wide edprev"><canvas id="edCv" width="880" height="300" aria-label="Aperçu du carton"></canvas>
+        <p class="note">Cadrez la photo au doigt sur l’aperçu : glissez pour la déplacer, pincez pour zoomer.</p></div>
+      <div class="g3">
+        <label>Zoom<input type="range" min="0.7" max="3" step="0.05" data-e="zoom" data-num value="${d.zoom}"></label>
+        <label>Horizontal<input type="range" min="0" max="100" step="0.5" data-e="px" data-num value="${d.px}"></label>
+        <label>Vertical<input type="range" min="0" max="100" step="0.5" data-e="py" data-num value="${d.py}"></label>
+      </div>${btns}`;
+    else box.innerHTML = `<legend>${E.isNew ? 'Nouvelle équipe' : 'Modifier l’équipe'}</legend>
+      <div class="tprev" id="tprev"></div>
+      <label class="wide">Nom (tel qu’affiché dans le tableau)<input data-e="nom" value="${esc(d.nom)}"></label>
+      <label>Code (3 lettres)<input data-e="code" value="${esc(d.code)}" maxlength="4" style="text-transform:uppercase"></label>
+      <label>Couleur<input type="color" data-e="couleur" value="${esc(d.couleur)}"></label>
+      <label class="wide">Logo<input type="file" accept="image/*" data-elogo></label>
+      <div class="paste wide" contenteditable="true" data-paste-e="logo" aria-label="Coller un logo">Ou touchez ici puis « Coller » un logo</div>
+      <label class="chk wide"><input type="checkbox" data-e="blanc" ${d.blanc ? 'checked' : ''}> Logo en blanc (sinon couleurs d’origine)</label>
+      <p class="note wide">Le fond uni d’un logo est retiré automatiquement et ses marges sont recadrées.</p>${btns}`;
+    if (E.kind === 'team') updateTeamPrev();
+  }
+  function updateTeamPrev() {
+    const z = $('#tprev'); if (!z || !EDIT) return; const d = EDIT.d;
+    z.innerHTML = `<span class="sw big" style="background:${esc(d.couleur)}">${d.logo ? `<img src="${esc(d.logo)}" alt="" class="${d.blanc ? 'wh' : ''}">` : ''}</span>
+      <div class="bugrow"><span class="sw" style="background:${esc(d.couleur)}">${d.logo ? `<img src="${esc(d.logo)}" alt="" class="${d.blanc ? 'wh' : ''}">` : ''}</span><b>${esc(d.nom || 'Nom de l’équipe')}</b></div>`;
+  }
+  function syncEditorSliders() { if (!EDIT) return; ['zoom', 'px', 'py'].forEach(k => { const el = document.querySelector(`[data-e="${k}"]`); if (el) el.value = EDIT.d[k]; }); }
+  // editor fields
+  form.addEventListener('input', onEditorField); form.addEventListener('change', onEditorField);
+  function onEditorField(e) {
+    const el = e.target;
+    if (EDIT && el.dataset.e) {
+      let v = el.type === 'checkbox' ? el.checked : el.value;
+      if ('num' in el.dataset) v = +v;
+      EDIT.d[el.dataset.e] = v;
+      if (EDIT.kind === 'team') updateTeamPrev();
+      return;
+    }
+    if (e.type !== 'change') return;
+    const I = LIB.infos;
+    if (el.dataset.adef != null) { I.def[+el.dataset.adef] = el.value; saveLib(); return; }
+    if (el.dataset.atype != null) { I.cat[+el.dataset.atype][1] = el.value; saveLib(); return; }
+    if (el.dataset.acat != null) {
+      const j = +el.dataset.acat, old = I.cat[j][0], nv = el.value.trim();
+      if (!nv || nv === old) { el.value = old; return; }
+      I.cat[j][0] = nv;
+      I.def = I.def.map(l => l === old ? nv : l);
+      LIB.players.forEach(x => { if (old in x.last) { x.last[nv] = x.last[old]; delete x.last[old]; } });
+      D.cards.forEach(c => c.infos.forEach(pr => { if (pr[0] === old) pr[0] = nv; }));
+      saveLib(); save(); renderAdmin(); return;
+    }
+    if (el.dataset.restore != null && el.files[0]) restoreFrom(el.files[0]);
+  }
+
+  function adminAct(b) {
+    const a = b.dataset.adm;
+    if (a === 'editPlayer') return openPlayerEditor(b.dataset.id, null);
+    if (a === 'newPlayer') return openPlayerEditor(null, null);
+    if (a === 'editTeam') return openTeamEditor(b.dataset.id, null);
+    if (a === 'newTeam') return openTeamEditor(null, null);
+    if (a === 'catAdd') { let n = 'Nouvelle info', k = 2; while (LIB.infos.cat.some(c => c[0] === n)) n = 'Nouvelle info ' + k++; LIB.infos.cat.push([n, 'texte']); saveLib(); renderAdmin(); return; }
+    if (a === 'catDel') { const j = +b.dataset.j, l = LIB.infos.cat[j][0]; LIB.infos.cat.splice(j, 1); LIB.infos.def = LIB.infos.def.map(x => x === l ? '' : x); saveLib(); renderAdmin(); return; }
+    if (a === 'backup') return backup();
+    if (a === 'edCancel') { const back = EDIT && EDIT.ret; EDIT = null; setTab(back ? 'tableau' : 'admin'); return; }
+    if (a === 'edSave') return editorSave();
+    if (a === 'edDel') return editorDelete();
+  }
+  function editorSave() {
+    const E = EDIT, d = E.d;
+    if (E.kind === 'player') {
+      d.prenom = d.prenom.trim(); d.nom = d.nom.trim(); d.numero = String(d.numero).trim();
+      if (!d.prenom && !d.nom) { flash('Indiquez au moins un prénom ou un nom.'); return; }
+      const i = LIB.players.findIndex(x => x.id === d.id); if (i < 0) LIB.players.push(d); else LIB.players[i] = d;
+      D.cards.forEach(c => { if (c.libId === d.id) { const keep = c.infos.map(pr => pr[1]); cardFromLib(c, d.id); c.infos.forEach((pr, j) => { if (!pr[1]) pr[1] = keep[j]; }); } });
+      if (E.ret && E.ret.card != null && D.cards[E.ret.card]) cardFromLib(D.cards[E.ret.card], d.id);
+      flash(`${esc(d.prenom)} ${esc(d.nom)} enregistré${E.isNew ? ' dans la bibliothèque' : ''}.`);
+    } else {
+      d.nom = d.nom.trim(); d.code = U(d.code).trim();
+      if (!d.nom) { flash('Indiquez le nom de l’équipe.'); return; }
+      if (!d.code) d.code = U(d.nom).replace(/[^A-ZÀ-Ý]/g, '').slice(0, 3);
+      const i = LIB.teams.findIndex(t => t.id === d.id); if (i < 0) LIB.teams.push(d); else LIB.teams[i] = d;
+      D.teams.forEach((t, k) => { if (t.libId === d.id) teamFromLib(k, d.id); });
+      if (E.ret && E.ret.slot != null) teamFromLib(E.ret.slot, d.id);
+      flash(`${esc(d.nom)} enregistrée${E.isNew ? ' dans la bibliothèque' : ''}.`);
+    }
+    saveLib(); save();
+    const back = E.ret; EDIT = null; setTab(back ? 'tableau' : 'admin');
+  }
+  function editorDelete() {
+    const E = EDIT, d = E.d;
+    const name = E.kind === 'player' ? `${d.prenom} ${d.nom}` : d.nom;
+    if (!confirm(`Supprimer ${name} de la bibliothèque ?`)) return;
+    if (E.kind === 'player') {
+      const x = libPlayer(d.id);
+      D.cards.forEach(c => { if (c.libId === d.id) { if (!c.photo && x && x.photo) { c.photo = x.photo; c.cut = x.cut; } c.libId = null; } });
+      LIB.players = LIB.players.filter(y => y.id !== d.id);
+    } else {
+      const t = libTeam(d.id);
+      D.teams.forEach(tm => { if (tm.libId === d.id) { if (!tm.logo && t) tm.logo = t.logo; tm.libId = null; } });
+      LIB.teams = LIB.teams.filter(y => y.id !== d.id);
+    }
+    saveLib(); save(); EDIT = null; setTab('admin'); flash(`${esc(name)} supprimé de la bibliothèque.`);
+  }
+
+  // live card preview in the player editor + finger framing (drag to move, pinch to zoom)
+  function drawEditorPreview() {
+    const cvE = document.getElementById('edCv'); if (!cvE || !EDIT || EDIT.kind !== 'player') return;
+    const d = EDIT.d, coach = d.role === 'coach';
+    const card = { prenom: d.prenom || 'Prénom', nom: d.nom || 'Nom', num: coach ? 'C' : d.numero, code: coach ? 'COACH' : 'FRA',
+      photo: d.photo, cut: d.cut, zoom: d.zoom, px: d.px, py: d.py, infos: LIB.infos.def.filter(Boolean).map(l => [l, d.last[l] || '–']) };
+    o.clearRect(0, 0, W, 330); drawCard(0, 1, 9, card);
+    const g = cvE.getContext('2d'); g.clearRect(0, 0, 880, 300); g.drawImage(ov, GX, 0, GW, 300, 0, 0, 880, 300);
+  }
+  const ptrs = new Map(); let gBase = null;
+  const rebase = () => { const pts = [...ptrs.values()]; gBase = EDIT ? { pts: pts.map(q => ({ ...q })), zoom: EDIT.d.zoom, px: EDIT.d.px, py: EDIT.d.py } : null; };
+  form.addEventListener('pointerdown', e => {
+    if (e.target.id !== 'edCv' || !EDIT || !EDIT.d.photo) return;
+    e.target.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); rebase(); e.preventDefault();
+  });
+  form.addEventListener('pointermove', e => {
+    if (!ptrs.has(e.pointerId) || !gBase || !EDIT) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const d = EDIT.d, im = img(d.photo); if (!im) return;
+    const k = 880 / e.target.getBoundingClientRect().width, pts = [...ptrs.values()];
+    if (pts.length >= 2 && gBase.pts.length >= 2) {
+      const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      d.zoom = Math.round(lim(gBase.zoom * dist(pts[0], pts[1]) / dist(gBase.pts[0], gBase.pts[1]), .7, 3) * 100) / 100;
+    } else if (pts.length === 1 && gBase.pts.length === 1) {
+      const s0 = Math.max(250 / im.width, 204 / im.height) * gBase.zoom, dw = im.width * s0, dh = im.height * s0;
+      const dx = (pts[0].x - gBase.pts[0].x) * k, dy = (pts[0].y - gBase.pts[0].y) * k;
+      if (dw - 250 > 1) d.px = Math.round(lim(gBase.px - dx / (dw - 250) * 100, 0, 100) * 2) / 2;
+      if (dh - 204 > 1) d.py = Math.round(lim(gBase.py - dy / (dh - 204) * 100, 0, 100) * 2) / 2;
+    }
+    syncEditorSliders();
+  });
+  const endPtr = e => { if (!ptrs.has(e.pointerId)) return; ptrs.delete(e.pointerId); rebase(); };
+  form.addEventListener('pointerup', endPtr); form.addEventListener('pointercancel', endPtr);
+
+  // backup file (images included) and restore
+  function libExport() {
+    return { format:'edf-scorebug-bibliotheque', version:2, date: new Date().toISOString().slice(0, 10),
+      equipes: LIB.teams.map(t => ({ id: t.id, code: t.code, nom: t.nom, couleur: t.couleur, logoBlanc: !!t.blanc, logo: t.logo })),
+      joueurs: LIB.players.map(x => ({ id: x.id, prenom: x.prenom, nom: x.nom, numero: x.numero, role: x.role, photo: x.photo, detouree: !!x.cut,
+        cadrage: { zoom: x.zoom, px: x.px, py: x.py }, dernieres: x.last || {} })),
+      infos: { catalogue: LIB.infos.cat, defaut: LIB.infos.def } };
+  }
+  function libImport(o2) {
+    if (!o2 || o2.format !== 'edf-scorebug-bibliotheque') throw new Error('Ce fichier n’est pas une sauvegarde de bibliothèque.');
+    LIB = {
+      teams: (o2.equipes || []).map(t => ({ id: t.code === 'FRA' ? 'fra' : (t.id || uid()), code: t.code || '', nom: t.nom || '', couleur: t.couleur || '#777777', blanc: !!t.logoBlanc, logo: t.logo || null })),
+      players: (o2.joueurs || []).map(x => { const cd = x.cadrage || {}; return { id: x.id || uid(), prenom: x.prenom || '', nom: x.nom || '', numero: String(x.numero ?? ''),
+        role: x.role === 'coach' ? 'coach' : 'joueur', photo: x.photo || null, cut: !!x.detouree, zoom: cd.zoom ?? 1, px: cd.px ?? 50, py: cd.py ?? 30, last: x.dernieres || {} }; }),
+      infos: o2.infos && Array.isArray(o2.infos.catalogue) ? { cat: o2.infos.catalogue, def: o2.infos.defaut || INFO_DEF().def } : INFO_DEF()
+    };
+    fixLib();
+    // re-link the current video to the restored library
+    D.teams.forEach((t, i) => {
+      if (libTeam(t.libId)) return;
+      const m = LIB.teams.find(x => x.code === U(t.code) || x.nom.toLowerCase() === String(t.name).toLowerCase());
+      if (m) teamFromLib(i, m.id); else t.libId = null;
+    });
+    D.cards.forEach(c => {
+      if (libPlayer(c.libId) || c.adv) return;
+      const m = LIB.players.find(x => `${x.prenom} ${x.nom}`.toLowerCase() === `${c.prenom} ${c.nom}`.toLowerCase());
+      c.libId = m ? m.id : null;
+      if (m && !c.photo) Object.assign(c, { zoom: m.zoom, px: m.px, py: m.py });
+    });
+    saveLib(); save();
+  }
+  async function shareOrDownload(file, okMsg) {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); flash(okMsg); }
+      catch (e) { if (!(e && e.name === 'AbortError')) flash('Le partage a échoué (' + esc((e && e.name) || 'erreur') + ').'); }
+      return;
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    flash(`<b>${esc(file.name)}</b> téléchargé.`);
+  }
+  function backup() {
+    const name = `bibliotheque-edf-${new Date().toISOString().slice(0, 10)}.json`;
+    const file = new File([JSON.stringify(libExport())], name, { type:'application/json' });
+    shareOrDownload(file, `Sauvegarde prête. Choisissez « Enregistrer dans Fichiers » pour la garder dans iCloud Drive.`);
+  }
+  async function restoreFrom(f) {
+    try {
+      const o2 = JSON.parse(await f.text());
+      const n = (o2.joueurs || []).length, m = (o2.equipes || []).length;
+      if (LIB.players.length && !confirm(`Remplacer la bibliothèque de ce téléphone par celle du fichier (${n} joueurs, ${m} équipes) ?`)) return;
+      libImport(o2);
+      renderAdmin(); flash(`Bibliothèque restaurée : ${plural(LIB.players.length, 'joueur', 'joueurs')}, ${plural(LIB.teams.length, 'équipe', 'équipes')}.`);
+    } catch (e) { flash('Impossible de lire ce fichier : ' + esc(e.message || e)); }
+  }
+
+  function renderAll() { bindStatic(); renderTeams(); renderCards(); renderBoard(); renderTL(); if (TAB === 'admin') renderAdmin(); }
 
   /* =========================================================
      TRANSPORT + CLIP LOADING
@@ -1117,7 +1617,14 @@ label.chk input{width:auto}
      BOOT
      ========================================================= */
   (async () => {
-    ['edf-marches.png', 'pas.png', ...D.teams.map(t => t.logo), ...D.cards.map(c => c.photo)].forEach(img);
+    await loadLib();
+    D.teams.forEach((t, i) => {
+      if (t.libId === undefined) t.libId = (i === 0 && /france/i.test(t.name || '')) ? 'fra' : null;
+      if (t.libId === 'fra' && t.logo === 'edf-marches.png') t.logo = null;
+      if (!t.code) t.code = t.libId === 'fra' ? 'FRA' : teamCode(t);
+    });
+    D.cards.forEach(c => { if (c.libId === undefined) c.libId = null; if (c.libId && !libPlayer(c.libId)) c.libId = null; });
+    ['edf-marches.png', 'pas.png', ...D.teams.map(teamLogoSrc), ...D.cards.map(c => (cardPhoto(c) || {}).src)].forEach(img);
     try {
       await Promise.all([F(800, 56, 1), F(800, 34, 1), F(600, 30, 1), F(700, 26), F(600, 40, 1), F(800, 76), F(700, 28), F(600, 34), F(700, 20), F(800, 44, 1), F(800, 84, 1)].map(f => document.fonts.load(f)));
     } catch (e) {}
