@@ -56,6 +56,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .shade{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,#000a 0 4px,#0006 4px 8px)}
 .bar{position:absolute;top:4px;bottom:4px;border-radius:4px}
 .bar.board{background:linear-gradient(90deg,#0079C8,#2C8FD6)}
+.bar.hook{background:repeating-linear-gradient(135deg,#E3232F 0 8px,#C81D28 8px 16px);color:#fff;font:800 12px/18px var(--disp);text-align:center;cursor:grab;overflow:hidden;letter-spacing:.08em}
 .bar.card{background:var(--orange);color:#1a0d00;font:800 13px/18px var(--disp);text-align:center;cursor:grab;overflow:hidden}
 .hdl{position:absolute;top:-2px;bottom:-2px;width:22px;margin-left:-11px;cursor:ew-resize;display:flex;align-items:center;justify-content:center}
 .hdl::after{content:"";width:6px;height:100%;border-radius:3px;background:#fff;box-shadow:0 0 0 1px #0008}
@@ -182,6 +183,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     <div class="tl" id="tl">
       <div class="tl-head">Frise <span>Glissez les repères, touchez pour avancer</span></div>
       <div class="lane"><span class="ll">Coupe</span><div class="track" data-lane="trim"></div></div>
+      <div class="lane" id="hookLane" hidden><span class="ll">Hook</span><div class="track" data-lane="hook"></div></div>
       <div class="lane"><span class="ll">Tableau</span><div class="track" data-lane="board"></div></div>
       <div class="lane"><span class="ll">Cartons</span><div class="track" data-lane="cards"></div></div>
       <div class="ph" id="ph"></div>
@@ -226,6 +228,20 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
         <button type="button" data-style="fit" data-v="blur">Vidéo entière + fond flou</button>
       </div>
       <label class="wide">Position horizontale du cadrage<input type="range" min="0" max="100" data-k="style.offx" data-num></label>
+    </fieldset>
+
+    <fieldset id="trFs">
+      <legend>Hook et transition « palet »</legend>
+      <label class="chk wide"><input type="checkbox" data-k="tr.on"> Commencer la vidéo par un hook, puis la transition palet</label>
+      <div class="sub" id="trOpts" style="border-top:0;padding-top:0">
+        <label>Début du hook (s)<input type="number" step="0.1" min="0" inputmode="decimal" data-k="tr.h" data-num></label>
+        <label>Durée du hook<select data-k="tr.len" data-num><option value="2">2 s</option><option value="3">3 s</option><option value="4">4 s</option><option value="5">5 s</option></select></label>
+        <div class="row-btns">
+          <button type="button" class="small" data-act="hookHere">Hook à l’instant affiché</button>
+          <button type="button" class="small" data-act="trPreview">▶ Voir hook + transition</button>
+        </div>
+        <p class="note wide">Le hook est un passage fort de l’extrait, joué en ouverture. Le palet fait la transition, puis l’impro démarre au début de la coupe. Glissez la barre « Hook » sur la frise pour choisir le passage.</p>
+      </div>
     </fieldset>
 
     <fieldset>
@@ -319,11 +335,13 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     ],
     board: { tin:0, events:[] },
     trim: { a:0, b:null },
+    tr: { on:false, h:null, len:3 },
     style: { pos:'bas', fit:'cover', offx:50, shine:0.6, safe:false, dy:0, v2:true }
   });
   let D = DEFAULT();
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.teams && s.cards) D = Object.assign(DEFAULT(), s); } catch (e) {}
   D.style = Object.assign(DEFAULT().style, D.style);
+  D.tr = Object.assign(DEFAULT().tr, D.tr);
   if (!D.style.v2) { if (D.style.pos !== 'haut') D.style.dy = lim((+D.style.dy || 0) - 170, -400, 200); D.style.v2 = true; } // board moved 170 px lower by default (16 Oct 2026)
   D.cards.forEach(c => (c.infos || []).forEach(p => { if (p[0] === 'En EDF depuis') p[0] = '1ère Sélection France'; }));
   let saveT = null;
@@ -851,6 +869,240 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     o.restore();
   }
 
+
+  /* =========================================================
+     PUCK TRANSITION — validated demo: white lino, +0.3 s pause, "LE REPLAY" already on the floor
+     ========================================================= */
+  const TR = { R:300, T:185, SK:260, CUT:.5, HOLD:.3, LAND:.95 };
+  const ST = () => 1.6 + TR.HOLD, OUTT = () => 1.25 + TR.HOLD;
+  const Pi = (t, s, d, e = eio) => e(clamp((t - s) / d));
+  let pseed = 3; const prnd = () => (pseed = (pseed * 16807) % 2147483647) / 2147483647;
+  const CYF = H * .52;
+  let floorC = null;
+  function buildFloor() {
+    pseed = 3;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    g.fillStyle = '#F2F2F0'; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 70; i++) {            // soft mottling of the vinyl
+      const x = prnd() * W, y = prnd() * H, r = 80 + prnd() * 260, m = g.createRadialGradient(x, y, 0, x, y, r);
+      const tone = prnd() > .5 ? '255,255,255' : '200,200,196';
+      m.addColorStop(0, `rgba(${tone},${.12 + prnd() * .15})`); m.addColorStop(1, `rgba(${tone},0)`);
+      g.fillStyle = m; g.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    for (let x = 170; x < W; x += 380) { g.fillStyle = 'rgba(0,0,0,.09)'; g.fillRect(x, 0, 2, H); g.fillStyle = 'rgba(255,255,255,.7)'; g.fillRect(x + 2, 0, 1, H); }
+    const band = (x, y, w, h, col, edge) => { g.fillStyle = col; g.fillRect(x, y, w, h); g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(x, y + 3, w, Math.max(2, h * .18)); g.fillStyle = edge; g.fillRect(x, y, w, 2); g.fillRect(x, y + h - 2, w, 2); };
+    band(0, 230, W, 44, 'rgba(10,85,168,.92)', 'rgba(0,30,80,.5)');
+    band(0, H - 274, W, 44, 'rgba(10,85,168,.92)', 'rgba(0,30,80,.5)');
+    band(0, CYF - 30, W, 60, 'rgba(214,35,47,.94)', 'rgba(120,10,20,.5)');
+    g.strokeStyle = 'rgba(214,35,47,.94)'; g.lineWidth = 26; g.beginPath(); g.arc(W / 2, CYF, 420, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 4; g.beginPath(); g.arc(W / 2, CYF, 424, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = 'rgba(10,85,168,.92)'; g.beginPath(); g.arc(W / 2, CYF, 22, 0, Math.PI * 2); g.fill();
+    g.lineCap = 'round';
+    for (let i = 0; i < 95; i++) {            // black shoe scuffs, more around the centre
+      const near = prnd() < .55, x = near ? W / 2 + (prnd() - .5) * 900 : prnd() * W, y = near ? CYF + (prnd() - .5) * 1100 : prnd() * H;
+      const l = 10 + prnd() * 90, a = prnd() * Math.PI;
+      g.strokeStyle = `rgba(25,25,25,${.04 + prnd() * .12})`; g.lineWidth = 1.5 + prnd() * 4;
+      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a) * l / 2 + (prnd() - .5) * 20, y + Math.sin(a) * l / 2, x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+    for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(60,60,60,${.03 + prnd() * .06})`; g.fillRect(prnd() * W, prnd() * H, 1 + prnd() * 2, 1 + prnd() * 2); }
+    const sh = g.createRadialGradient(W * .65, H * .3, 0, W * .65, H * .3, 760);
+    sh.addColorStop(0, 'rgba(255,255,255,.55)'); sh.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = sh; g.fillRect(0, 0, W, H);
+    const v = g.createRadialGradient(W / 2, H / 2, H * .25, W / 2, H / 2, H * .8); v.addColorStop(0, 'rgba(20,25,35,0)'); v.addColorStop(1, 'rgba(20,25,35,.2)');
+    g.fillStyle = v; g.fillRect(0, 0, W, H);
+    return c;
+  }
+  const flecks = (() => { pseed = 11; return Array.from({ length: 34 }, () => ({ a: prnd() * Math.PI * 2, v: 260 + prnd() * 520, z: 2 + prnd() * 6 })); })();
+  // faces: A = France (full logo), B = the opposing team (its colour and logo)
+  const faceA = document.createElement('canvas'), faceB = document.createElement('canvas');
+  let faceAok = false, faceBkey = '';
+  function faceBase(g, fill) {
+    const R = TR.R;
+    g.clearRect(0, 0, R * 2, R * 2);
+    g.fillStyle = '#111'; g.beginPath(); g.arc(R, R, R, 0, Math.PI * 2); g.fill();
+    g.fillStyle = fill; g.beginPath(); g.arc(R, R, R - 22, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 5; g.beginPath(); g.arc(R, R, R - 40, 0, Math.PI * 2); g.stroke();
+  }
+  function faceShine(g) {
+    const R = TR.R, sh = g.createRadialGradient(R * .55, R * .45, 0, R, R, R);
+    sh.addColorStop(0, 'rgba(255,255,255,.18)'); sh.addColorStop(.5, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(0,0,0,.25)');
+    g.fillStyle = sh; g.beginPath(); g.arc(R, R, R, 0, Math.PI * 2); g.fill();
+  }
+  function ensureFaces() {
+    const R = TR.R;
+    if (!faceAok) {
+      const lg = img('edf-full.png');
+      if (lg) {
+        faceA.width = faceA.height = R * 2; const g = faceA.getContext('2d');
+        const bl = g.createRadialGradient(R * .7, R * .6, 10, R, R, R - 22); bl.addColorStop(0, '#1A84D6'); bl.addColorStop(.6, '#0A55A8'); bl.addColorStop(1, '#0A2D66');
+        faceBase(g, bl);
+        const lh = 420, lw = lh * lg.width / lg.height; g.drawImage(lg, R - lw / 2, R - lh / 2, lw, lh);
+        faceShine(g); faceAok = true;
+      }
+    }
+    const t2 = D.teams[1], src = teamLogoSrc(t2), lg = teamLogo(t2), key = `${t2.col}|${t2.white}|${src ? src.length + src.slice(-30) : ''}|${!!lg}`;
+    if (key !== faceBkey) {
+      faceB.width = faceB.height = R * 2; const g = faceB.getContext('2d');
+      faceBase(g, t2.col || '#777');
+      if (lg) { const bx = R * 1.3, sc = Math.min(bx / lg.width, bx / lg.height), dw = lg.width * sc, dh = lg.height * sc; g.drawImage(lg, R - dw / 2, R - dh / 2, dw, dh); }
+      faceShine(g); faceBkey = key;
+    }
+  }
+  // a cylinder flipping around its horizontal axis (th), spun in-plane (phi), seen from above
+  function puck(cx, cy, sc, th, phi) {
+    const R = TR.R, T = TR.T, c = Math.cos(th), s = Math.sin(th);
+    const ry = R * Math.abs(c), d = T * s / 2;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(phi); ctx.scale(sc, sc);
+    const fy = c >= 0 ? -d : d, by = -fy;
+    ctx.save(); ctx.beginPath();
+    ctx.ellipse(0, by, R, Math.max(ry, .5), 0, 0, Math.PI * 2);
+    ctx.rect(-R, Math.min(fy, by), R * 2, Math.abs(fy - by));
+    ctx.ellipse(0, fy, R, Math.max(ry, .5), 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#0d0d0d'; ctx.fill('nonzero'); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,.09)'; ctx.lineWidth = 3;
+    for (let x = -R; x <= R; x += 14) { ctx.beginPath(); ctx.moveTo(x, -T); ctx.lineTo(x + 30, T); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x + 30, -T); ctx.lineTo(x, T); ctx.stroke(); }
+    const eg = ctx.createLinearGradient(-R, 0, R, 0); eg.addColorStop(0, 'rgba(0,0,0,.5)'); eg.addColorStop(.35, 'rgba(255,255,255,.12)'); eg.addColorStop(1, 'rgba(0,0,0,.55)');
+    ctx.fillStyle = eg; ctx.fillRect(-R, -T, R * 2, T * 2);
+    ctx.restore();
+    if (ry > .5) { ctx.save(); ctx.translate(0, fy); ctx.scale(1, Math.abs(c)); ctx.drawImage(c >= 0 ? faceA : faceB, -R, -R); ctx.restore(); }
+    ctx.restore();
+  }
+  function replayText(dx) {
+    ctx.save(); ctx.translate(W / 2 + dx, 470);
+    ctx.font = F(800, 170, 1); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillText('LE REPLAY', 6, 8);
+    ctx.fillStyle = '#0A2D66'; ctx.fillText('LE REPLAY', 0, 0);
+    ctx.fillStyle = '#E3232F'; ctx.fillRect(-150, 26, 300, 12);
+    ctx.restore();
+  }
+  function panelPath(l, r) { const SK = TR.SK; ctx.beginPath(); ctx.moveTo(l + SK, 0); ctx.lineTo(r + SK, 0); ctx.lineTo(r - SK, H); ctx.lineTo(l - SK, H); ctx.closePath(); }
+  function stinger(s) {
+    ensureFaces(); if (!floorC) floorC = buildFloor();
+    const R = TR.R, SK = TR.SK, span = W + 2 * SK, land = TR.LAND;
+    let shake = 0;
+    if (s > land && s < land + .14) shake = (1 - (s - land) / .14) * 14 * Math.sin((s - land) * 140);
+    [['#E3232F', 0, .1], ['#FFFFFF', .04, .05], [null, .08, 0]].forEach(([col, dIn, dOut]) => {
+      const e = Pi(s, dIn, .4), x = Pi(s, OUTT() + dOut, .35);
+      const l = W + SK - e * span, r = W + SK - x * span;
+      if (r <= l) return;
+      if (col) { panelPath(l, r); ctx.fillStyle = col; ctx.fill(); return; }
+      ctx.save(); panelPath(l, r); ctx.clip();
+      ctx.save(); ctx.translate(0, shake);
+      ctx.drawImage(floorC, 0, -20, W, H + 40);
+      const exitDx = -x * span;
+      replayText(exitDx);
+      const fp = clamp((s - .1) / (land - .1));
+      if (s >= .1) {
+        const height = 1 - fp * fp, spin = 1 - Math.pow(1 - fp, 1.5);
+        const cx = W * .5 + (1 - fp) * 380 + exitDx, cy = H * .52 + (1 - fp) * 560 - Math.sin(fp * Math.PI) * 140;
+        let sc = 1 + height * .75, th, phi = (1 - spin) * -2.6;
+        if (s < land) th = (1 - spin) * 5 * Math.PI;
+        else { const k = s - land; th = .5 * Math.exp(-k * 9) * Math.sin(k * 34); sc *= 1 + .05 * Math.exp(-k * 14) * Math.sin(k * 30 + 1.2); }
+        ctx.save(); ctx.globalAlpha = .34 * (1 - height * .6);
+        if ('filter' in ctx) ctx.filter = `blur(${10 + height * 40}px)`;
+        ctx.fillStyle = '#3a2c1c'; ctx.beginPath(); ctx.ellipse(cx + 26 + height * 140, cy + 40 + height * 220, R * sc * .98, R * sc * .9, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        if (s > land && s < land + .6) {          // dust pushed out from under the puck
+          const k = (s - land) / .6;
+          flecks.forEach((f, i) => {
+            if (i % 2) return;
+            const dd = R * .85 + f.v * .45 * eo(k), rr = 40 + f.z * 12 * (.6 + k);
+            const px = cx + Math.cos(f.a) * dd, py = cy + Math.sin(f.a) * dd * .9;
+            const gr = ctx.createRadialGradient(px, py, 0, px, py, rr);
+            gr.addColorStop(0, `rgba(140,135,128,${.5 * (1 - k)})`); gr.addColorStop(1, 'rgba(150,145,138,0)');
+            ctx.fillStyle = gr; ctx.fillRect(px - rr, py - rr, rr * 2, rr * 2);
+          });
+          flecks.forEach(f => {
+            const dd = R * .9 + f.v * eo(k);
+            ctx.fillStyle = `rgba(110,105,98,${.75 * (1 - k)})`;
+            ctx.beginPath(); ctx.arc(cx + Math.cos(f.a) * dd, cy + Math.sin(f.a) * dd * .9, f.z * .9, 0, Math.PI * 2); ctx.fill();
+          });
+        }
+        puck(cx, cy, sc, th, phi);
+        const gp = clamp((s - 1.02) / .3);
+        if (gp > 0 && gp < 1) {                     // glint across the logo once settled
+          ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R * sc, 0, Math.PI * 2); ctx.clip();
+          ctx.globalCompositeOperation = 'lighter';
+          const gx = cx - R * 1.6 + R * 3.2 * eio(gp), gg = ctx.createLinearGradient(gx - 90, 0, gx + 90, 0);
+          gg.addColorStop(0, 'rgba(255,255,255,0)'); gg.addColorStop(.5, 'rgba(255,255,255,.4)'); gg.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = gg; ctx.beginPath(); ctx.moveTo(gx + 30, cy - R * 1.2); ctx.lineTo(gx + 210, cy - R * 1.2); ctx.lineTo(gx - 30, cy + R * 1.2); ctx.lineTo(gx - 210, cy + R * 1.2); ctx.closePath(); ctx.fill();
+          ctx.restore();
+        }
+      }
+      ctx.restore(); ctx.restore();
+    });
+  }
+  // sound: spinning whoosh, the puck's "clac", exit whoosh — mixed into the export
+  let sfxG = null, hitBuf = null, hitLoading = false;
+  function loadHit() {
+    if (hitBuf || hitLoading || !actx) return; hitLoading = true;
+    fetch('palet.wav').then(r => r.arrayBuffer()).then(b => new Promise((res, rej) => actx.decodeAudioData(b, res, rej)))
+      .then(buf => { hitBuf = buf; }).catch(() => { hitLoading = false; });
+  }
+  function sfx() {
+    ensureAudio(); if (!actx) return;
+    try {
+      if (!sfxG) { sfxG = actx.createGain(); sfxG.gain.value = .9; sfxG.connect(actx.destination); if (aDest) sfxG.connect(aDest); }
+      const t0 = actx.currentTime + .02, out = sfxG;
+      const noise = len => { const b = actx.createBuffer(1, Math.max(1, actx.sampleRate * len | 0), actx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; const sr = actx.createBufferSource(); sr.buffer = b; return sr; };
+      const wh = (at, du, vol, f0, f1) => {
+        const n = noise(du), bp = actx.createBiquadFilter(), g = actx.createGain();
+        bp.type = 'bandpass'; bp.Q.value = 1.2; bp.frequency.setValueAtTime(f0, at); bp.frequency.exponentialRampToValueAtTime(f1, at + du);
+        g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + du * .5); g.gain.exponentialRampToValueAtTime(.0001, at + du);
+        n.connect(bp).connect(g).connect(out); n.start(at); n.stop(at + du);
+      };
+      wh(t0, .42, .35, 400, 2400);
+      const fl = .1, fd = .85;
+      const n = noise(fd), bp = actx.createBiquadFilter(), g = actx.createGain(), lfo = actx.createOscillator(), lg = actx.createGain();
+      bp.type = 'bandpass'; bp.Q.value = 2; bp.frequency.setValueAtTime(1400, t0 + fl); bp.frequency.exponentialRampToValueAtTime(500, t0 + fl + fd);
+      g.gain.setValueAtTime(.0001, t0 + fl); g.gain.exponentialRampToValueAtTime(.4, t0 + fl + fd * .3); g.gain.exponentialRampToValueAtTime(.05, t0 + fl + fd);
+      lfo.frequency.setValueAtTime(22, t0 + fl); lfo.frequency.exponentialRampToValueAtTime(4, t0 + fl + fd);
+      lg.gain.value = .25; lfo.connect(lg).connect(g.gain);
+      n.connect(bp).connect(g).connect(out); n.start(t0 + fl); n.stop(t0 + fl + fd); lfo.start(t0 + fl); lfo.stop(t0 + fl + fd);
+      const hit = t0 + TR.LAND;
+      if (hitBuf) {  // real recorded puck hit, with a soft low thump for weight
+        const sr = actx.createBufferSource(), sg = actx.createGain(); sr.buffer = hitBuf; sg.gain.value = 1;
+        sr.connect(sg).connect(out); sr.start(hit);
+        const os = actx.createOscillator(), og = actx.createGain();
+        os.type = 'sine'; os.frequency.setValueAtTime(150, hit); os.frequency.exponentialRampToValueAtTime(60, hit + .14);
+        og.gain.setValueAtTime(.35, hit); og.gain.exponentialRampToValueAtTime(.0001, hit + .18);
+        os.connect(og).connect(out); os.start(hit); os.stop(hit + .2);
+        wh(t0 + OUTT(), .36, .22, 2200, 400);
+        return;
+      }
+      const click = noise(.04), hp = actx.createBiquadFilter(), cg = actx.createGain();
+      hp.type = 'highpass'; hp.frequency.value = 2500; cg.gain.setValueAtTime(.9, hit); cg.gain.exponentialRampToValueAtTime(.0001, hit + .04);
+      click.connect(hp).connect(cg).connect(out); click.start(hit); click.stop(hit + .04);
+      const body = noise(.18), rb = actx.createBiquadFilter(), bg = actx.createGain();
+      rb.type = 'bandpass'; rb.frequency.value = 900; rb.Q.value = 6; bg.gain.setValueAtTime(.8, hit); bg.gain.exponentialRampToValueAtTime(.0001, hit + .18);
+      body.connect(rb).connect(bg).connect(out); body.start(hit); body.stop(hit + .18);
+      const os = actx.createOscillator(), og = actx.createGain();
+      os.type = 'sine'; os.frequency.setValueAtTime(190, hit); os.frequency.exponentialRampToValueAtTime(70, hit + .14);
+      og.gain.setValueAtTime(.7, hit); og.gain.exponentialRampToValueAtTime(.0001, hit + .2);
+      os.connect(og).connect(out); os.start(hit); os.stop(hit + .22);
+      wh(t0 + OUTT(), .36, .22, 2200, 400);
+    } catch (e) {}
+  }
+  // sequence: hook (clip h → h+len) → puck (video cut to the start of the trim, paused while covered) → the impro
+  let SEQ = null;
+  const hookLen = () => lim(+D.tr.len || 3, 1, 6);
+  const hookStart = () => lim(D.tr.h == null ? A() : +D.tr.h, 0, Math.max(0, dur - hookLen()));
+  function startSequence() {
+    SEQ = { phase:'hook', s0:0, cut:false, resumed:false };
+    vid.currentTime = hookStart();
+    return vid.play();
+  }
+  function stepSequence() {
+    if (!SEQ) return null;
+    if (SEQ.phase === 'hook' && vid.currentTime >= hookStart() + hookLen() - TR.CUT) { SEQ.phase = 'sting'; SEQ.s0 = performance.now(); sfx(); }
+    if (SEQ.phase !== 'sting') return null;
+    const s = (performance.now() - SEQ.s0) / 1000;
+    if (s >= TR.CUT && !SEQ.cut) { SEQ.cut = true; vid.pause(); vid.currentTime = A(); }
+    if (s >= OUTT() && !SEQ.resumed) { SEQ.resumed = true; vid.play().catch(() => {}); }
+    if (s >= ST()) { SEQ = null; return null; }
+    return s;
+  }
+
   /* background video */
   let clipReady = false;
   function drawBackground() {
@@ -878,18 +1130,23 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   const fmtD = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
   function frame() {
     const t = clipReady ? vid.currentTime : 0;
-    if (clipReady && !vid.paused && t >= B() - .02) {
+    const stS = stepSequence();
+    const inHook = SEQ && !SEQ.cut;
+    if (clipReady && !vid.paused && !SEQ && t >= B() - .02) {
       if (rec) { rec.state !== 'inactive' && rec.stop(); vid.pause(); }
       else vid.pause();
     }
     drawBackground();
-    drawOverlay(t);
-    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 10; ctx.drawImage(ov, 0, 0); ctx.restore();
+    if (!inHook) {
+      drawOverlay(t);
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 10; ctx.drawImage(ov, 0, 0); ctx.restore();
+    }
+    if (stS != null) stinger(stS);
     if (EDIT && TAB === 'admin') drawEditorPreview();
     $('#time').innerHTML = `<b>${fmtD(t)}</b> / ${fmt(dur)} · coupe ${fmtD(B() - A())}`;
     placePlayhead(t);
     updateToggleBtn(t);
-    if (rec) $('#barFill').style.width = (clamp((t - A()) / ((B() - A()) || 1)) * 100).toFixed(1) + '%';
+    if (rec) $('#barFill').style.width = (inHook ? 0 : clamp((t - A()) / ((B() - A()) || 1)) * 100).toFixed(1) + '%';
     requestAnimationFrame(frame);
   }
 
@@ -912,6 +1169,8 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     let mks = `<div class="mk entry" data-drag="tin" style="left:${pct(D.board.tin)}%" title="Entrée du tableau"><i>▶</i></div>`;
     D.board.events.forEach((e, i) => { mks += `<div class="mk ${e.type}" data-drag="ev:${i}" style="left:${pct(e.t)}%" title="${e.type === 'out' ? 'Sortie' : 'Retour'}"><i>${e.type === 'out' ? '▼' : '▲'}</i></div>`; });
     lane('board').innerHTML = segs + mks;
+    $('#hookLane').hidden = !D.tr.on;
+    lane('hook').innerHTML = D.tr.on ? `<div class="bar hook" data-drag="hbar" style="left:${pct(hookStart())}%;width:${pct(hookLen())}%">HOOK</div>` : '';
     lane('cards').innerHTML = D.cards.map((c, i) =>
       `<div class="bar card" data-drag="cbar:${i}" style="left:${pct(c.tin)}%;width:${pct(c.tout - c.tin)}%">${i + 1}</div>` +
       `<div class="hdl" data-drag="cin:${i}" style="left:${pct(c.tin)}%"></div><div class="hdl" data-drag="cout:${i}" style="left:${pct(c.tout)}%"></div>`).join('');
@@ -934,6 +1193,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       const [kind, idx] = h.dataset.drag.split(':');
       drag = { kind, i: +idx, t0: t };
       if (kind === 'cbar') { const c = D.cards[+idx]; drag.tin = c.tin; drag.tout = c.tout; }
+      if (kind === 'hbar') drag.h = hookStart();
     } else if (e.target.closest('.track')) { drag = { kind:'seek' }; seek(t); }
     else return;
     tl.setPointerCapture(e.pointerId); e.preventDefault();
@@ -942,6 +1202,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     if (!drag) return;
     const t = r1(timeAt(e.clientX)), k = drag.kind;
     if (k === 'seek') { seek(t); return; }
+    if (k === 'hbar') { D.tr.h = r1(lim(drag.h + (t - drag.t0), 0, Math.max(0, dur - hookLen()))); seek(D.tr.h); renderTL(); return; }
     if (k === 'trimA') D.trim.a = Math.min(t, B() - .5);
     else if (k === 'trimB') D.trim.b = Math.max(t, A() + .5);
     else if (k === 'tin') D.board.tin = t;
@@ -953,9 +1214,9 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     else seek(Math.max(0, t - .05));
     renderTL();
   });
-  const endDrag = () => { if (!drag) return; const k = drag.kind; drag = null; if (k !== 'seek') { normalize(); renderTL(); renderCards(); renderBoard(); save(); } };
+  const endDrag = () => { if (!drag) return; const k = drag.kind; drag = null; if (k === 'hbar') { bindStatic(); save(); return; } if (k !== 'seek') { normalize(); renderTL(); renderCards(); renderBoard(); save(); } };
   tl.addEventListener('pointerup', endDrag); tl.addEventListener('pointercancel', endDrag);
-  function seek(t) { if (!clipReady) return; vid.pause(); vid.currentTime = lim(t, 0, dur); }
+  function seek(t) { if (!clipReady) return; SEQ = null; vid.pause(); vid.currentTime = lim(t, 0, dur); }
 
   function updateToggleBtn(t) {
     const st = boardAt(t), btn = $('#aToggle');
@@ -985,6 +1246,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     });
     form.querySelectorAll('[data-style]').forEach(b => b.setAttribute('aria-pressed', D.style[b.dataset.style] === b.dataset.v));
     $('#safe').hidden = !D.style.safe;
+    $('#trOpts').hidden = !D.tr.on;
   }
   form.addEventListener('input', onField);
   form.addEventListener('change', onField);
@@ -1015,6 +1277,11 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     if (mN) refreshCardHead(+mN[1]);  // update in place: never re-render while typing
     if (/^cards\.\d+\.(tin|tout)$/.test(k) || /^board\./.test(k)) { if (e.type === 'change') { normalize(); renderTL(); renderCards(); renderBoard(); } }
     if (k === 'style.safe') $('#safe').hidden = !D.style.safe;
+    if (/^tr\./.test(k) && e.type === 'change') {
+      if (k === 'tr.on' && D.tr.on && D.tr.h == null) D.tr.h = r1(clipReady ? vid.currentTime : 0);
+      if (D.tr.h != null) D.tr.h = r1(hookStart());
+      bindStatic(); renderTL();
+    }
     save();
   }
   form.addEventListener('click', e => {
@@ -1024,6 +1291,8 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     if (b.dataset.adm) { adminAct(b); return; }
     const act = b.dataset.act; if (!act) return;
     const i = +b.dataset.i;
+    if (act === 'hookHere') { D.tr.h = r1(lim(vid.currentTime || 0, 0, Math.max(0, dur - hookLen()))); bindStatic(); renderTL(); save(); return; }
+    if (act === 'trPreview') { if (!clipReady || rec) return; ensureAudio(); startSequence().catch(() => {}); return; }
     if (act === 'plus1') {
       const c = D.cards[i], j = +b.dataset.j, n = parseInt(String(c.infos[j][1]).replace(/\s/g, ''), 10);
       c.infos[j][1] = String((isNaN(n) ? 0 : n) + 1); remember(c, j); save(); renderCards(); return;
@@ -1486,9 +1755,10 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   $('#btnPlay').onclick = () => {
     if (!clipReady || rec) return;
     ensureAudio();
+    if (SEQ) { SEQ = null; vid.pause(); return; }
     if (vid.paused) { if (vid.currentTime >= B() - .05 || vid.currentTime < A()) vid.currentTime = A(); vid.play().catch(() => {}); } else vid.pause();
   };
-  $('#btnRestart').onclick = () => { if (!clipReady || rec) return; ensureAudio(); vid.currentTime = A(); vid.play().catch(() => {}); };
+  $('#btnRestart').onclick = () => { if (!clipReady || rec) return; ensureAudio(); if (D.tr.on) { startSequence().catch(() => {}); return; } SEQ = null; vid.currentTime = A(); vid.play().catch(() => {}); };
 
   function useSrc(src, label, fresh) {
     clipReady = false; $('#btnExport').disabled = true;
@@ -1528,6 +1798,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       aDest = actx.createMediaStreamDestination();
       src.connect(aDest);
       actx.resume();
+      loadHit();
     } catch (e) { audioErr = e.message || String(e); actx = null; aDest = null; }
   }
 
@@ -1565,14 +1836,15 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       finish(new Blob(chunks, { type }), type.includes('webm') ? 'webm' : 'mp4', aTracks.length);
     };
     rec = r;
-    vid.pause(); vid.currentTime = A();
+    vid.pause(); SEQ = null;
     r.start(250);
-    const p = vid.play();
+    let p;
+    if (D.tr.on) p = startSequence(); else { vid.currentTime = A(); p = vid.play(); }
     if (p && p.catch) p.catch(err => { setMsg('La lecture a été bloquée par le navigateur (' + esc(err.name || err) + '). Touchez à nouveau « Exporter ».'); cancelled = true; r.state !== 'inactive' && r.stop(); });
-    vid.addEventListener('ended', () => r.state !== 'inactive' && r.stop(), { once: true });
+    vid.addEventListener('ended', function onEnd() { if (SEQ) return; vid.removeEventListener('ended', onEnd); r.state !== 'inactive' && r.stop(); });
     setMsg('Export en cours… la vidéo défile en temps réel. Gardez l’écran allumé.');
   };
-  $('#btnCancel').onclick = () => { if (!rec) return; cancelled = true; vid.pause(); rec.state !== 'inactive' && rec.stop(); };
+  $('#btnCancel').onclick = () => { if (!rec) return; cancelled = true; SEQ = null; vid.pause(); rec.state !== 'inactive' && rec.stop(); };
 
   function finish(blob, ext, nAudioTracks) {
     rec = null; lock(false);
@@ -1624,7 +1896,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       if (!t.code) t.code = t.libId === 'fra' ? 'FRA' : teamCode(t);
     });
     D.cards.forEach(c => { if (c.libId === undefined) c.libId = null; if (c.libId && !libPlayer(c.libId)) c.libId = null; });
-    ['edf-marches.png', 'pas.png', ...D.teams.map(teamLogoSrc), ...D.cards.map(c => (cardPhoto(c) || {}).src)].forEach(img);
+    ['edf-marches.png', 'edf-full.png', 'pas.png', ...D.teams.map(teamLogoSrc), ...D.cards.map(c => (cardPhoto(c) || {}).src)].forEach(img);
     try {
       await Promise.all([F(800, 56, 1), F(800, 34, 1), F(600, 30, 1), F(700, 26), F(600, 40, 1), F(800, 76), F(700, 28), F(600, 34), F(700, 20), F(800, 44, 1), F(800, 84, 1)].map(f => document.fonts.load(f)));
     } catch (e) {}

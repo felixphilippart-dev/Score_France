@@ -1,6 +1,6 @@
 // Keeps the tool usable offline. Change VERSION whenever the site is updated.
-const VERSION = 'score-edf-v3';
-const CORE = ['./', 'index.html', 'edf-marches.png', 'pas.png', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
+const VERSION = 'score-edf-v6';
+const CORE = ['./', 'index.html', 'edf-marches.png', 'edf-full.png', 'palet.wav', 'pas.png', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
