@@ -299,6 +299,9 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
           </label>
           <label class="wide">Hauteur du tableau (vers la droite = plus bas)<input type="range" min="-400" max="200" step="10" data-k="style.dy" data-num></label>
           <label class="chk wide"><input type="checkbox" data-k="style.safe"> Afficher les zones masquées par TikTok, Reels et Shorts</label>
+          <label class="wide">Calage du son à l’export : <span id="avsyncVal"></span>
+            <input type="range" min="0" max="0.8" step="0.02" data-k="style.avsync" data-num>
+            <span class="note" style="text-transform:none;letter-spacing:0;font-weight:500">Si, dans la vidéo exportée, le son arrive avant l’image, poussez vers la droite ; s’il arrive après, vers la gauche. Réglage conseillé : 0,30 s.</span></label>
           <div class="row-btns"><button type="button" class="small ghost" id="btnReset">Revenir aux réglages d’exemple</button></div>
         </fieldset>
       </div>
@@ -344,7 +347,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     board: { tin:0, events:[] },
     trim: { a:0, b:null },
     tr: { on:false, h:null, len:3, end:false, l1:'', l2:'' },
-    style: { pos:'bas', fit:'cover', offx:50, shine:0.6, safe:false, dy:0, v2:true }
+    style: { pos:'bas', fit:'cover', offx:50, shine:0.6, safe:false, dy:0, v2:true, avsync:0.3 }
   });
   let D = DEFAULT();
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.teams && s.cards) D = Object.assign(DEFAULT(), s); } catch (e) {}
@@ -1092,7 +1095,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   function sfx(withExit = true) {
     ensureAudio(); if (!actx) return;
     try {
-      if (!sfxG) { sfxG = actx.createGain(); sfxG.gain.value = .9; sfxG.connect(actx.destination); if (aDest) sfxG.connect(aDest); }
+      if (!sfxG) { sfxG = actx.createGain(); sfxG.gain.value = .9; sfxG.connect(actx.destination); if (recIn) sfxG.connect(recIn); }
       const t0 = actx.currentTime + .02, out = sfxG;
       const noise = len => { const b = actx.createBuffer(1, Math.max(1, actx.sampleRate * len | 0), actx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; const sr = actx.createBufferSource(); sr.buffer = b; return sr; };
       const wh = (at, du, vol, f0, f1) => {
@@ -1340,6 +1343,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     });
     form.querySelectorAll('[data-style]').forEach(b => b.setAttribute('aria-pressed', D.style[b.dataset.style] === b.dataset.v));
     $('#safe').hidden = !D.style.safe;
+    showAvsync();
     $('#trOpts').hidden = !D.tr.on; $('#trEndOpts').hidden = !D.tr.end; $('#trText').hidden = !(D.tr.on || D.tr.end);
   }
   form.addEventListener('input', markDirty); form.addEventListener('change', markDirty); form.addEventListener('click', markDirty);
@@ -1373,6 +1377,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     if (mN) refreshCardHead(+mN[1]);  // update in place: never re-render while typing
     if (/^cards\.\d+\.(tin|tout)$/.test(k) || /^board\./.test(k)) { if (e.type === 'change') { normalize(); renderTL(); renderCards(); renderBoard(); } }
     if (k === 'style.safe') $('#safe').hidden = !D.style.safe;
+    if (k === 'style.avsync') { setRecDelay(); showAvsync(); }
     if (/^tr\./.test(k) && e.type === 'change') {
       if (k === 'tr.on' && D.tr.on && D.tr.h == null) D.tr.h = r1(clipReady ? vid.currentTime : 0);
       if (D.tr.h != null) D.tr.h = r1(hookStart());
@@ -1903,13 +1908,18 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
      the iPhone's video-to-recorder sound path. If the soundtrack can't be decoded, fallback mode ("element")
      routes the video's own sound, as before. */
   let actx = null, aDest = null, audioErr = '', gate = null, clipOut = null, elemSrc = null;
-  let audioMode = 'element', clipBuf = null, clipToken = 0;
+  let audioMode = 'element', clipBuf = null, clipToken = 0, recIn = null, recDelay = null;
+  function showAvsync() { const el = document.getElementById('avsyncVal'); if (el) el.textContent = (+D.style.avsync || 0).toFixed(2).replace('.', ',') + ' s'; }
+  function setRecDelay() { if (recDelay) recDelay.delayTime.value = lim(+D.style.avsync || 0, 0, 1.5); }
   function makeCtx() {
     if (actx) return actx;
     actx = new (window.AudioContext || window.webkitAudioContext)();
     aDest = actx.createMediaStreamDestination();
+    // the iPhone records the image about 0.3 s late: the recorded sound is delayed by the same amount
+    recIn = actx.createGain(); recDelay = actx.createDelay(2);
+    recIn.connect(recDelay); recDelay.connect(aDest); setRecDelay();
     clipOut = actx.createGain();
-    clipOut.connect(actx.destination); clipOut.connect(aDest);
+    clipOut.connect(actx.destination); clipOut.connect(recIn);
     return actx;
   }
   function attachElementSound() {
