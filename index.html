@@ -894,8 +894,9 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   /* =========================================================
      PUCK TRANSITION — validated demo: white lino, +0.3 s pause, "LE REPLAY" already on the floor
      ========================================================= */
-  const TR = { R:300, T:185, SK:260, CUT:.5, HOLD:.3, LAND:.95 };
-  const ST = () => 1.6 + TR.HOLD, OUTT = () => 1.25 + TR.HOLD;
+  // 2.7 s in all: tumbling flight until 1.35 s, landing, then a pause; the floor leaves at 2.35 s
+  const TR = { R:300, T:185, SK:260, CUT:.5, HOLD:.7, LAND:1.35 };
+  const ST = () => TR.LAND + .65 + TR.HOLD, OUTT = () => TR.LAND + .3 + TR.HOLD;
   const Pi = (t, s, d, e = eio) => e(clamp((t - s) / d));
   let pseed = 3; const prnd = () => (pseed = (pseed * 16807) % 2147483647) / 2147483647;
   const CYF = H * .52;
@@ -1072,7 +1073,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
           });
         }
         puck(cx, cy, sc, th, phi);
-        const gp = clamp((s - 1.02) / .3);
+        const gp = clamp((s - land - .07) / .3);
         if (gp > 0 && gp < 1) {                     // glint across the logo once settled
           ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R * sc, 0, Math.PI * 2); ctx.clip();
           ctx.globalCompositeOperation = 'lighter';
@@ -1105,7 +1106,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
         n.connect(bp).connect(g).connect(out); n.start(at); n.stop(at + du);
       };
       wh(t0, .42, .35, 400, 2400);
-      const fl = .1, fd = .85;
+      const fl = .1, fd = TR.LAND - .1;
       const n = noise(fd), bp = actx.createBiquadFilter(), g = actx.createGain(), lfo = actx.createOscillator(), lg = actx.createGain();
       bp.type = 'bandpass'; bp.Q.value = 2; bp.frequency.setValueAtTime(1400, t0 + fl); bp.frequency.exponentialRampToValueAtTime(500, t0 + fl + fd);
       g.gain.setValueAtTime(.0001, t0 + fl); g.gain.exponentialRampToValueAtTime(.4, t0 + fl + fd * .3); g.gain.exponentialRampToValueAtTime(.05, t0 + fl + fd);
@@ -1141,9 +1142,8 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   const hookLen = () => lim(+D.tr.len || 3, 1, Math.max(1, Math.min(30, dur || 30)));
   const hookStart = () => lim(D.tr.h == null ? A() : +D.tr.h, 0, Math.max(0, dur - hookLen()));
   async function startSequence() {
-    SEQ = null;
-    await playFrom(hookStart());
     SEQ = { phase:'hook', s0:0, cut:false, resumed:false };
+    await playFrom(hookStart());
   }
   const END_HOLD = .45;  // the settled puck stays on screen this long at the very end
   function stepSequence() {
@@ -1161,8 +1161,11 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     if (SEQ.phase === 'hook' && vid.currentTime >= hookStart() + hookLen() - TR.CUT) { SEQ.phase = 'sting'; SEQ.s0 = performance.now(); sfx(); }
     if (SEQ.phase !== 'sting') return null;
     const s = (performance.now() - SEQ.s0) / 1000;
-    if (s >= TR.CUT && !SEQ.cut) { SEQ.cut = true; gateTo(0); vid.pause(); vid.currentTime = A(); }
-    if (s >= OUTT() && !SEQ.resumed) { SEQ.resumed = true; resumePlay().catch(() => {}); }
+    if (s >= TR.CUT && !SEQ.cut) { SEQ.cut = true; gateTo(0); vid.pause(); ARM = null; SEQ.ru = runup(A()); vid.currentTime = SEQ.ru.from; }
+    // the run-up plays hidden behind the floor, so the impro is exactly at its start when the floor leaves
+    if (SEQ.cut && !SEQ.resumed && s >= OUTT() - (SEQ.ru.at - SEQ.ru.from)) {
+      SEQ.resumed = true; ARM = { t: SEQ.ru.at, fn: () => gateTo(1) }; vid.play().catch(() => {});
+    }
     if (s >= ST()) { SEQ = null; return null; }
     return s;
   }
@@ -1211,7 +1214,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   let lastDraw = 0, uiTick = 0, lastTimeHTML = '';
   function frame(now) {
     requestAnimationFrame(frame);
-    syncAudio();
+    checkArm();
     // while recording, draw at a steady 30 fps (the recorder captures 30 fps): half the work, no uneven frames
     if (rec && now - lastDraw < 28) return;
     const moving = rec || SEQ || drag || (clipReady && !vid.paused) || (EDIT && TAB === 'admin');
@@ -1225,8 +1228,10 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       if (rec) { rec.state !== 'inactive' && rec.stop(); vid.pause(); }
       else vid.pause();
     }
-    drawBackground();
-    if (!inHook) {
+    // while the floor covers the whole screen, the video and the board under it aren't drawn (lighter puck)
+    const covered = stS != null && stS > .5 && (SEQ && SEQ.phase === 'end' ? true : stS < OUTT() - .03);
+    if (!covered) drawBackground();
+    if (!inHook && !covered) {
       drawOverlay(t);
       // the soft shadow only around the graphics, not over the whole 1080×1920 frame (much lighter)
       const L = layout(), y0 = Math.max(0, Math.min(L.card, L.strip, L.bug) - 50), y1 = Math.min(H, Math.max(L.card + 300, L.strip + 52, L.bug + 192) + 70);
@@ -1313,7 +1318,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   });
   const endDrag = () => { if (!drag) return; const k = drag.kind; drag = null; if (k === 'hbar' || k === 'hlen') { bindStatic(); save(); return; } if (k !== 'seek') { normalize(); renderTL(); renderCards(); renderBoard(); save(); } };
   tl.addEventListener('pointerup', endDrag); tl.addEventListener('pointercancel', endDrag);
-  function seek(t) { if (!clipReady) return; SEQ = null; vid.pause(); vid.currentTime = lim(t, 0, dur); }
+  function seek(t) { if (!clipReady) return; SEQ = null; ARM = null; vid.pause(); vid.currentTime = lim(t, 0, dur); }
 
   function updateToggleBtn(t) {
     const st = boardAt(t), btn = $('#aToggle');
@@ -1895,20 +1900,14 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     const f = e.target.files[0]; if (!f) return;
     if (!/^video\//.test(f.type) && !/\.(mov|mp4|m4v)$/i.test(f.name)) { setMsg('Ce fichier n’est pas une vidéo.'); return; }
     useSrc(URL.createObjectURL(f), f.name, true);
-    decodeClipAudio(f);
   });
   const drop = $('#drop');
   ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
   ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
-  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) { useSrc(URL.createObjectURL(f), f.name, true); decodeClipAudio(f); } });
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) useSrc(URL.createObjectURL(f), f.name, true); });
 
-  /* audio routing (needed to record the clip's sound) */
-  /* The clip's sound. Main mode ("buffer"): the soundtrack is decoded once, and the app plays it itself,
-     locked onto the video's position (the video element stays silent). This avoids the variable delay of
-     the iPhone's video-to-recorder sound path. If the soundtrack can't be decoded, fallback mode ("element")
-     routes the video's own sound, as before. */
-  let actx = null, aDest = null, audioErr = '', gate = null, clipOut = null, elemSrc = null;
-  let audioMode = 'element', clipBuf = null, clipToken = 0, recIn = null, recDelay = null;
+  /* audio routing (needed to record the clip's sound): video → gate → speakers, and → delay → recorder */
+  let actx = null, aDest = null, audioErr = '', gate = null, clipOut = null, elemSrc = null, recIn = null, recDelay = null;
   function showAvsync() { const el = document.getElementById('avsyncVal'); if (el) el.textContent = (+D.style.avsync || 0).toFixed(2).replace('.', ',') + ' s'; }
   function setRecDelay() { if (recDelay) recDelay.delayTime.value = lim(+D.style.avsync || 0, 0, 1.5); }
   function makeCtx() {
@@ -1931,55 +1930,20 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     try {
       makeCtx();
       if (actx.state !== 'running') actx.resume();
-      if (audioMode === 'element') attachElementSound();
+      attachElementSound();
       loadHit();
     } catch (e) { audioErr = e.message || String(e); }
   }
-  async function decodeClipAudio(file) {
-    const my = ++clipToken;
-    audStop(); clipBuf = null; audioMode = 'pending'; vid.muted = true;
-    try {
-      makeCtx();
-      const ab = await file.arrayBuffer();
-      const buf = await new Promise((res, rej) => { const q = actx.decodeAudioData(ab, res, rej); if (q && q.then) q.then(res, rej); });
-      if (my !== clipToken) return;
-      clipBuf = buf; audioMode = 'buffer';
-      if (gate) gate.gain.value = 0;          // the video's own sound stays off
-    } catch (e) {
-      if (my !== clipToken) return;
-      clipBuf = null; audioMode = 'element'; vid.muted = false;
-      audioErr = 'son lu par la vidéo';
-    }
-    if (clipReady) setMsg('Extrait prêt. L’export couvre la coupe choisie, en temps réel : gardez l’écran allumé et cette page au premier plan.');
-  }
-  // buffer mode: follow the video. Starts with it, stops with it, and re-locks if it drifts by more than 60 ms
-  let audNode = null, audT0 = 0, audOff = 0, lastSync = 0;
-  function audStop() { if (audNode) { try { audNode.stop(); } catch (e) {} try { audNode.disconnect(); } catch (e) {} audNode = null; } }
-  function audStart(off) {
-    audStop();
-    if (!clipBuf || !actx || off >= clipBuf.duration) return;
-    const n = actx.createBufferSource(); n.buffer = clipBuf; n.connect(clipOut);
-    audT0 = actx.currentTime + .01; audOff = Math.max(0, off);
-    n.start(audT0, audOff); audNode = n;
-  }
-  function audKick() { if (audioMode === 'buffer' && actx && !vid.paused) { audStart(vid.currentTime + .01); lastSync = performance.now(); } }
-  function syncAudio() {
-    if (audioMode !== 'buffer' || !actx) return;
-    const playing = !vid.paused && !vid.seeking && !vid.ended && vid.readyState >= 3;
-    if (!playing) { audStop(); return; }
-    const want = vid.currentTime;
-    if (!audNode) { audStart(want + .01); lastSync = performance.now(); return; }
-    const now = performance.now(); if (now - lastSync < 300) return; lastSync = now;
-    const pos = audOff + (actx.currentTime - audT0);
-    if (Math.abs(pos - want) > .06) audStart(want + .01);
-  }
-  ['pause', 'seeking', 'ended', 'waiting'].forEach(ev => vid.addEventListener(ev, audStop));
-
-  /* Jumping inside the video, then playing: wait until the jump is really done before starting,
-     and keep the clip's sound closed meanwhile (otherwise the iPhone plays a scrap of sound from
-     the old position, and image and sound can end up slightly out of step). */
+  /* After a jump inside the video, the iPhone first replays a few tenths of a second of sound from where it
+     was before. So every (re)start takes a run-up: the video restarts half a second early with its sound
+     closed, and the sound opens at the exact moment the wanted passage arrives. The scrap falls in the silence. */
+  const PRE = .5;
+  let ARM = null;
+  function checkArm() { if (ARM && !vid.paused && !vid.seeking && vid.currentTime >= ARM.t - .015) { const f = ARM.fn; ARM = null; f(); } }
+  // if the wanted moment is in the first half-second of the video, those first tenths are skipped
+  const runup = t => { const from = Math.max(0, t - PRE); return { from, at: Math.max(t, from + PRE) }; };
   function gateTo(v) {
-    if (!gate || !actx || audioMode !== 'element') return;
+    if (!gate || !actx) return;
     const t = actx.currentTime;
     gate.gain.cancelScheduledValues(t); gate.gain.setValueAtTime(gate.gain.value, t);
     if (v) gate.gain.setTargetAtTime(1, t, .004); else gate.gain.setValueAtTime(0, t);
@@ -2004,16 +1968,12 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   }
   // called straight from a tap: keeps the iPhone's permission to play sound for the next steps
   function prime() { ensureAudio(); gateTo(0); try { const q = vid.play(); if (q && q.catch) q.catch(() => {}); vid.pause(); } catch (e) {} }
-  async function playFrom(t) {
-    gateTo(0); vid.pause();
-    await seekTo(t);
-    gateTo(1);           // the jump is done: the sound can start with the image
-    await vid.play(); audKick();
-    await waitPlaying();
-  }
-  async function resumePlay() {   // after the puck: the jump was made while paused
-    if (vid.seeking) await new Promise(r => { vid.addEventListener('seeked', r, { once: true }); setTimeout(r, 1500); });
-    gateTo(1); await vid.play(); audKick(); await waitPlaying();
+  async function playFrom(t, onReady) {
+    gateTo(0); vid.pause(); ARM = null;
+    const r = runup(t);
+    await seekTo(r.from);
+    ARM = { t: r.at, fn: () => { gateTo(1); if (onReady) onReady(); } };
+    await vid.play();
   }
 
   /* =========================================================
@@ -2031,7 +1991,6 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   $('#btnExport').onclick = async () => {
     if (!clipReady || rec) return;
     if (!window.MediaRecorder || !cv.captureStream) { setMsg('Ce navigateur ne sait pas exporter. Sur iPhone, il faut iOS 14.5 ou plus récent.'); return; }
-    if (audioMode === 'pending') { setMsg('Préparation du son de l’extrait… réessayez dans un instant.'); return; }
     prime();
     $('#result').hidden = true; cancelled = false; lock(true);
     try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => wake = w).catch(() => {}); } catch (e) {}
@@ -2051,27 +2010,26 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       finish(new Blob(chunks, { type }), type.includes('webm') ? 'webm' : 'mp4', aTracks.length);
     };
     rec = r;
-    vid.pause(); SEQ = null;
+    vid.pause(); SEQ = null; ARM = null;
     setMsg('Préparation de l’export…');
     try {
-      // first frame and first sound at the exact start: jump, wait, play, then record
-      gateTo(0); await seekTo(D.tr.on ? hookStart() : A());
+      // run-up: the clip restarts half a second early, silent and not recorded; recording and sound start at the exact moment
+      gateTo(0);
+      const ru = runup(D.tr.on ? hookStart() : A());
+      await seekTo(ru.from);
       if (cancelled) { rec = null; lock(false); return; }
       if (D.tr.on) SEQ = { phase:'hook', s0:0, cut:false, resumed:false };
-      r.start(250);        // recording starts on the exact first image (still, silent)…
-      await new Promise(z => setTimeout(z, 150));   // …lets the recorder's sound wake up, then the clip starts
-      if (cancelled) return;
-      gateTo(1);
-      await vid.play(); audKick(); await waitPlaying();
+      ARM = { t: ru.at, fn: () => { if (cancelled || r.state !== 'inactive') return; r.start(250); gateTo(1); } };
+      await vid.play();
     } catch (err) {
-      SEQ = null; rec = null; lock(false);
+      SEQ = null; ARM = null; rec = null; lock(false);
       setMsg('La lecture a été bloquée par le navigateur (' + esc(err.name || err) + '). Touchez à nouveau « Exporter ».');
       return;
     }
     vid.addEventListener('ended', function onEnd() { if (SEQ || D.tr.end) return; vid.removeEventListener('ended', onEnd); r.state !== 'inactive' && r.stop(); });
     setMsg('Export en cours… la vidéo défile en temps réel. Gardez l’écran allumé.');
   };
-  $('#btnCancel').onclick = () => { if (!rec) return; cancelled = true; SEQ = null; vid.pause(); if (rec.state !== 'inactive') rec.stop(); else { rec = null; lock(false); setMsg('Export annulé.'); } };
+  $('#btnCancel').onclick = () => { if (!rec) return; cancelled = true; SEQ = null; ARM = null; vid.pause(); if (rec.state !== 'inactive') rec.stop(); else { rec = null; lock(false); setMsg('Export annulé.'); } };
 
   function finish(blob, ext, nAudioTracks) {
     rec = null; lock(false);
@@ -2087,7 +2045,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     $('#diag').innerHTML = [
       ['Format', `${ext.toUpperCase()}`],
       ['Taille', `${(blob.size / 1048576).toFixed(1)} Mo`],
-      ['Son', nAudioTracks ? `<span class="pill ok">piste envoyée</span>${audioMode === 'buffer' ? ' · calée sur l’image' : ''}` : `<span class="pill warn">aucune piste</span>${audioErr ? ' · ' + esc(audioErr) : ''}`]
+      ['Son', nAudioTracks ? '<span class="pill ok">piste envoyée</span>' : `<span class="pill warn">aucune piste</span>${audioErr ? ' · ' + esc(audioErr) : ''}`]
     ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
     rv.onloadedmetadata = () => { if (isFinite(rv.duration)) $('#diag').insertAdjacentHTML('beforeend', `<dt>Durée</dt><dd>${rv.duration.toFixed(1)} s</dd>`); };
   }

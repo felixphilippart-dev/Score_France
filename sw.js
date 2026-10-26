@@ -1,5 +1,5 @@
 // Keeps the tool usable offline. Change VERSION whenever the site is updated.
-const VERSION = 'score-edf-v14';
+const VERSION = 'score-edf-v15';
 const CORE = ['./', 'index.html', 'edf-marches.png', 'edf-full.png', 'palet.wav', 'pas.png', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
