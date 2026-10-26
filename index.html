@@ -1208,6 +1208,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   let lastDraw = 0, uiTick = 0, lastTimeHTML = '';
   function frame(now) {
     requestAnimationFrame(frame);
+    syncAudio();
     // while recording, draw at a steady 30 fps (the recorder captures 30 fps): half the work, no uneven frames
     if (rec && now - lastDraw < 28) return;
     const moving = rec || SEQ || drag || (clipReady && !vid.paused) || (EDIT && TAB === 'admin');
@@ -1889,34 +1890,86 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     const f = e.target.files[0]; if (!f) return;
     if (!/^video\//.test(f.type) && !/\.(mov|mp4|m4v)$/i.test(f.name)) { setMsg('Ce fichier n’est pas une vidéo.'); return; }
     useSrc(URL.createObjectURL(f), f.name, true);
+    decodeClipAudio(f);
   });
   const drop = $('#drop');
   ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
   ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
-  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) useSrc(URL.createObjectURL(f), f.name, true); });
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) { useSrc(URL.createObjectURL(f), f.name, true); decodeClipAudio(f); } });
 
   /* audio routing (needed to record the clip's sound) */
-  let actx = null, aDest = null, audioErr = '', gate = null;
-  function ensureAudio() {
-    if (actx) { if (actx.state !== 'running') actx.resume(); return; }
-    try {
-      actx = new (window.AudioContext || window.webkitAudioContext)();
-      const src = actx.createMediaElementSource(vid);
-      gate = actx.createGain();
-      src.connect(gate);
-      gate.connect(actx.destination);
-      aDest = actx.createMediaStreamDestination();
-      gate.connect(aDest);
-      actx.resume();
-      loadHit();
-    } catch (e) { audioErr = e.message || String(e); actx = null; aDest = null; }
+  /* The clip's sound. Main mode ("buffer"): the soundtrack is decoded once, and the app plays it itself,
+     locked onto the video's position (the video element stays silent). This avoids the variable delay of
+     the iPhone's video-to-recorder sound path. If the soundtrack can't be decoded, fallback mode ("element")
+     routes the video's own sound, as before. */
+  let actx = null, aDest = null, audioErr = '', gate = null, clipOut = null, elemSrc = null;
+  let audioMode = 'element', clipBuf = null, clipToken = 0;
+  function makeCtx() {
+    if (actx) return actx;
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    aDest = actx.createMediaStreamDestination();
+    clipOut = actx.createGain();
+    clipOut.connect(actx.destination); clipOut.connect(aDest);
+    return actx;
   }
+  function attachElementSound() {
+    if (elemSrc || !actx) return;
+    elemSrc = actx.createMediaElementSource(vid);
+    gate = actx.createGain(); elemSrc.connect(gate); gate.connect(clipOut);
+  }
+  function ensureAudio() {
+    try {
+      makeCtx();
+      if (actx.state !== 'running') actx.resume();
+      if (audioMode === 'element') attachElementSound();
+      loadHit();
+    } catch (e) { audioErr = e.message || String(e); }
+  }
+  async function decodeClipAudio(file) {
+    const my = ++clipToken;
+    audStop(); clipBuf = null; audioMode = 'pending'; vid.muted = true;
+    try {
+      makeCtx();
+      const ab = await file.arrayBuffer();
+      const buf = await new Promise((res, rej) => { const q = actx.decodeAudioData(ab, res, rej); if (q && q.then) q.then(res, rej); });
+      if (my !== clipToken) return;
+      clipBuf = buf; audioMode = 'buffer';
+      if (gate) gate.gain.value = 0;          // the video's own sound stays off
+    } catch (e) {
+      if (my !== clipToken) return;
+      clipBuf = null; audioMode = 'element'; vid.muted = false;
+      audioErr = 'son lu par la vidéo';
+    }
+    if (clipReady) setMsg('Extrait prêt. L’export couvre la coupe choisie, en temps réel : gardez l’écran allumé et cette page au premier plan.');
+  }
+  // buffer mode: follow the video. Starts with it, stops with it, and re-locks if it drifts by more than 60 ms
+  let audNode = null, audT0 = 0, audOff = 0, lastSync = 0;
+  function audStop() { if (audNode) { try { audNode.stop(); } catch (e) {} try { audNode.disconnect(); } catch (e) {} audNode = null; } }
+  function audStart(off) {
+    audStop();
+    if (!clipBuf || !actx || off >= clipBuf.duration) return;
+    const n = actx.createBufferSource(); n.buffer = clipBuf; n.connect(clipOut);
+    audT0 = actx.currentTime + .01; audOff = Math.max(0, off);
+    n.start(audT0, audOff); audNode = n;
+  }
+  function audKick() { if (audioMode === 'buffer' && actx && !vid.paused) { audStart(vid.currentTime + .01); lastSync = performance.now(); } }
+  function syncAudio() {
+    if (audioMode !== 'buffer' || !actx) return;
+    const playing = !vid.paused && !vid.seeking && !vid.ended && vid.readyState >= 3;
+    if (!playing) { audStop(); return; }
+    const want = vid.currentTime;
+    if (!audNode) { audStart(want + .01); lastSync = performance.now(); return; }
+    const now = performance.now(); if (now - lastSync < 300) return; lastSync = now;
+    const pos = audOff + (actx.currentTime - audT0);
+    if (Math.abs(pos - want) > .06) audStart(want + .01);
+  }
+  ['pause', 'seeking', 'ended', 'waiting'].forEach(ev => vid.addEventListener(ev, audStop));
 
   /* Jumping inside the video, then playing: wait until the jump is really done before starting,
      and keep the clip's sound closed meanwhile (otherwise the iPhone plays a scrap of sound from
      the old position, and image and sound can end up slightly out of step). */
   function gateTo(v) {
-    if (!gate || !actx) return;
+    if (!gate || !actx || audioMode !== 'element') return;
     const t = actx.currentTime;
     gate.gain.cancelScheduledValues(t); gate.gain.setValueAtTime(gate.gain.value, t);
     if (v) gate.gain.setTargetAtTime(1, t, .004); else gate.gain.setValueAtTime(0, t);
@@ -1945,12 +1998,12 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     gateTo(0); vid.pause();
     await seekTo(t);
     gateTo(1);           // the jump is done: the sound can start with the image
-    await vid.play();
+    await vid.play(); audKick();
     await waitPlaying();
   }
   async function resumePlay() {   // after the puck: the jump was made while paused
     if (vid.seeking) await new Promise(r => { vid.addEventListener('seeked', r, { once: true }); setTimeout(r, 1500); });
-    gateTo(1); await vid.play(); await waitPlaying();
+    gateTo(1); await vid.play(); audKick(); await waitPlaying();
   }
 
   /* =========================================================
@@ -1968,6 +2021,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   $('#btnExport').onclick = async () => {
     if (!clipReady || rec) return;
     if (!window.MediaRecorder || !cv.captureStream) { setMsg('Ce navigateur ne sait pas exporter. Sur iPhone, il faut iOS 14.5 ou plus récent.'); return; }
+    if (audioMode === 'pending') { setMsg('Préparation du son de l’extrait… réessayez dans un instant.'); return; }
     prime();
     $('#result').hidden = true; cancelled = false; lock(true);
     try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => wake = w).catch(() => {}); } catch (e) {}
@@ -1998,7 +2052,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       await new Promise(z => setTimeout(z, 150));   // …lets the recorder's sound wake up, then the clip starts
       if (cancelled) return;
       gateTo(1);
-      await vid.play(); await waitPlaying();
+      await vid.play(); audKick(); await waitPlaying();
     } catch (err) {
       SEQ = null; rec = null; lock(false);
       setMsg('La lecture a été bloquée par le navigateur (' + esc(err.name || err) + '). Touchez à nouveau « Exporter ».');
@@ -2023,7 +2077,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     $('#diag').innerHTML = [
       ['Format', `${ext.toUpperCase()}`],
       ['Taille', `${(blob.size / 1048576).toFixed(1)} Mo`],
-      ['Son', nAudioTracks ? '<span class="pill ok">piste envoyée</span>' : `<span class="pill warn">aucune piste</span>${audioErr ? ' · ' + esc(audioErr) : ''}`]
+      ['Son', nAudioTracks ? `<span class="pill ok">piste envoyée</span>${audioMode === 'buffer' ? ' · calée sur l’image' : ''}` : `<span class="pill warn">aucune piste</span>${audioErr ? ' · ' + esc(audioErr) : ''}`]
     ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
     rv.onloadedmetadata = () => { if (isFinite(rv.duration)) $('#diag').insertAdjacentHTML('beforeend', `<dt>Durée</dt><dd>${rv.duration.toFixed(1)} s</dd>`); };
   }
