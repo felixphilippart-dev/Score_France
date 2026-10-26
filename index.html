@@ -245,6 +245,10 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       </div>
       <label class="chk wide"><input type="checkbox" data-k="tr.end"> Conclure la vidéo par l’animation palet</label>
       <div class="row-btns" id="trEndOpts"><button type="button" class="small" data-act="endPreview">▶ Voir la fin</button></div>
+      <div class="sub" id="trText" style="border-top:0;padding-top:0">
+        <label class="wide">Texte sous le palet, ligne 1 (facultatif)<input data-k="tr.l1" placeholder="France Vs. Québec" maxlength="40"></label>
+        <label class="wide">Ligne 2 (facultatif)<input data-k="tr.l2" placeholder="Coupe du monde · Lyon, 24 octobre 2026" maxlength="60"></label>
+      </div>
     </fieldset>
 
     <fieldset>
@@ -339,7 +343,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     ],
     board: { tin:0, events:[] },
     trim: { a:0, b:null },
-    tr: { on:false, h:null, len:3, end:false },
+    tr: { on:false, h:null, len:3, end:false, l1:'', l2:'' },
     style: { pos:'bas', fit:'cover', offx:50, shine:0.6, safe:false, dy:0, v2:true }
   });
   let D = DEFAULT();
@@ -993,6 +997,29 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     ctx.fillStyle = '#E3232F'; ctx.fillRect(-150, 26, 300, 12);
     ctx.restore();
   }
+  // optional match title under the puck, printed on the floor like « LE REPLAY »
+  function matchText(dx) {
+    const l1 = U(String(D.tr.l1 || '').trim()), l2 = U(String(D.tr.l2 || '').trim());
+    if (!l1 && !l2) return;
+    ctx.save(); ctx.translate(W / 2 + dx, 0); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    const fit = (txt, font, maxW) => { ctx.font = font; const w = ctx.measureText(txt).width; return w > maxW ? maxW / w : 1; };
+    let y = 1528;   // between the bottom of the centre circle (1418) and the blue tape (1646)
+    if (l1) {
+      const f = F(800, 92, 1), k = fit(l1, f, 940);
+      ctx.save(); ctx.translate(0, y); ctx.scale(k, 1);
+      ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.fillText(l1, 4, 6);
+      ctx.fillStyle = '#0A2D66'; ctx.fillText(l1, 0, 0);
+      ctx.restore();
+      y += 64;
+    }
+    if (l2) {
+      const f = F(600, 48, 1), k = fit(l2, f, 940);
+      ctx.save(); ctx.translate(0, l1 ? y : y - 8); ctx.scale(k, 1);
+      ctx.fillStyle = '#E3232F'; ctx.fillText(l2, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
   function panelPath(l, r) { const SK = TR.SK; ctx.beginPath(); ctx.moveTo(l + SK, 0); ctx.lineTo(r + SK, 0); ctx.lineTo(r - SK, H); ctx.lineTo(l - SK, H); ctx.closePath(); }
   function stinger(s, withReplay = true) {
     ensureFaces(); if (!floorC) floorC = buildFloor();
@@ -1009,6 +1036,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
       ctx.drawImage(floorC, 0, -20, W, H + 40);
       const exitDx = -x * span;
       if (withReplay) replayText(exitDx);
+      matchText(exitDx);
       const fp = clamp((s - .1) / (land - .1));
       if (s >= .1) {
         const height = 1 - fp * fp, spin = 1 - Math.pow(1 - fp, 1.5);
@@ -1109,10 +1137,10 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   let SEQ = null;
   const hookLen = () => lim(+D.tr.len || 3, 1, Math.max(1, Math.min(30, dur || 30)));
   const hookStart = () => lim(D.tr.h == null ? A() : +D.tr.h, 0, Math.max(0, dur - hookLen()));
-  function startSequence() {
+  async function startSequence() {
+    SEQ = null;
+    await playFrom(hookStart());
     SEQ = { phase:'hook', s0:0, cut:false, resumed:false };
-    vid.currentTime = hookStart();
-    return vid.play();
   }
   const END_HOLD = .45;  // the settled puck stays on screen this long at the very end
   function stepSequence() {
@@ -1130,8 +1158,8 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     if (SEQ.phase === 'hook' && vid.currentTime >= hookStart() + hookLen() - TR.CUT) { SEQ.phase = 'sting'; SEQ.s0 = performance.now(); sfx(); }
     if (SEQ.phase !== 'sting') return null;
     const s = (performance.now() - SEQ.s0) / 1000;
-    if (s >= TR.CUT && !SEQ.cut) { SEQ.cut = true; vid.pause(); vid.currentTime = A(); }
-    if (s >= OUTT() && !SEQ.resumed) { SEQ.resumed = true; vid.play().catch(() => {}); }
+    if (s >= TR.CUT && !SEQ.cut) { SEQ.cut = true; gateTo(0); vid.pause(); vid.currentTime = A(); }
+    if (s >= OUTT() && !SEQ.resumed) { SEQ.resumed = true; resumePlay().catch(() => {}); }
     if (s >= ST()) { SEQ = null; return null; }
     return s;
   }
@@ -1311,7 +1339,7 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     });
     form.querySelectorAll('[data-style]').forEach(b => b.setAttribute('aria-pressed', D.style[b.dataset.style] === b.dataset.v));
     $('#safe').hidden = !D.style.safe;
-    $('#trOpts').hidden = !D.tr.on; $('#trEndOpts').hidden = !D.tr.end;
+    $('#trOpts').hidden = !D.tr.on; $('#trEndOpts').hidden = !D.tr.end; $('#trText').hidden = !(D.tr.on || D.tr.end);
   }
   form.addEventListener('input', markDirty); form.addEventListener('change', markDirty); form.addEventListener('click', markDirty);
   ['seeked', 'loadeddata', 'play', 'pause', 'timeupdate'].forEach(ev => vid.addEventListener(ev, markDirty));
@@ -1359,8 +1387,8 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     const act = b.dataset.act; if (!act) return;
     const i = +b.dataset.i;
     if (act === 'hookHere') { D.tr.h = r1(lim(vid.currentTime || 0, 0, Math.max(0, dur - hookLen()))); bindStatic(); renderTL(); save(); return; }
-    if (act === 'endPreview') { if (!clipReady || rec) return; ensureAudio(); SEQ = null; vid.currentTime = Math.max(A(), B() - 2.5); vid.play().catch(() => {}); return; }
-    if (act === 'trPreview') { if (!clipReady || rec) return; ensureAudio(); startSequence().catch(() => {}); return; }
+    if (act === 'endPreview') { if (!clipReady || rec) return; prime(); SEQ = null; playFrom(Math.max(A(), B() - 2.5)).catch(() => {}); return; }
+    if (act === 'trPreview') { if (!clipReady || rec) return; prime(); startSequence().catch(() => {}); return; }
     if (act === 'plus1') {
       const c = D.cards[i], j = +b.dataset.j, n = parseInt(String(c.infos[j][1]).replace(/\s/g, ''), 10);
       c.infos[j][1] = String((isNaN(n) ? 0 : n) + 1); remember(c, j); save(); renderCards(); return;
@@ -1833,9 +1861,12 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     ensureAudio();
     if (SEQ && SEQ.phase !== 'end') { SEQ = null; vid.pause(); return; }
     SEQ = null;
-    if (vid.paused) { if (vid.currentTime >= B() - .05 || vid.currentTime < A()) vid.currentTime = A(); vid.play().catch(() => {}); } else vid.pause();
+    if (vid.paused) {
+      if (vid.currentTime >= B() - .05 || vid.currentTime < A()) { prime(); playFrom(A()).catch(() => {}); }
+      else { gateTo(1); vid.play().catch(() => {}); }
+    } else vid.pause();
   };
-  $('#btnRestart').onclick = () => { if (!clipReady || rec) return; ensureAudio(); if (D.tr.on) { startSequence().catch(() => {}); return; } SEQ = null; vid.currentTime = A(); vid.play().catch(() => {}); };
+  $('#btnRestart').onclick = () => { if (!clipReady || rec) return; prime(); if (D.tr.on) { startSequence().catch(() => {}); return; } SEQ = null; playFrom(A()).catch(() => {}); };
 
   function useSrc(src, label, fresh) {
     clipReady = false; $('#btnExport').disabled = true;
@@ -1865,18 +1896,61 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) useSrc(URL.createObjectURL(f), f.name, true); });
 
   /* audio routing (needed to record the clip's sound) */
-  let actx = null, aDest = null, audioErr = '';
+  let actx = null, aDest = null, audioErr = '', gate = null;
   function ensureAudio() {
     if (actx) { if (actx.state !== 'running') actx.resume(); return; }
     try {
       actx = new (window.AudioContext || window.webkitAudioContext)();
       const src = actx.createMediaElementSource(vid);
-      src.connect(actx.destination);
+      gate = actx.createGain();
+      src.connect(gate);
+      gate.connect(actx.destination);
       aDest = actx.createMediaStreamDestination();
-      src.connect(aDest);
+      gate.connect(aDest);
       actx.resume();
       loadHit();
     } catch (e) { audioErr = e.message || String(e); actx = null; aDest = null; }
+  }
+
+  /* Jumping inside the video, then playing: wait until the jump is really done before starting,
+     and keep the clip's sound closed meanwhile (otherwise the iPhone plays a scrap of sound from
+     the old position, and image and sound can end up slightly out of step). */
+  function gateTo(v) {
+    if (!gate || !actx) return;
+    const t = actx.currentTime;
+    gate.gain.cancelScheduledValues(t); gate.gain.setValueAtTime(gate.gain.value, t);
+    if (v) gate.gain.setTargetAtTime(1, t, .004); else gate.gain.setValueAtTime(0, t);
+  }
+  function seekTo(t) {
+    return new Promise(res => {
+      let done = false;
+      const fin = () => { if (done) return; done = true; vid.removeEventListener('seeked', fin); res(); };
+      vid.addEventListener('seeked', fin);
+      vid.currentTime = t;
+      setTimeout(fin, 2500);
+    });
+  }
+  function waitPlaying() {
+    return new Promise(res => {
+      let done = false;
+      const fin = () => { if (done) return; done = true; vid.removeEventListener('playing', fin); res(); };
+      if (!vid.paused && vid.readyState >= 3 && !vid.seeking) { setTimeout(fin, 30); }
+      vid.addEventListener('playing', fin);
+      setTimeout(fin, 2500);
+    });
+  }
+  // called straight from a tap: keeps the iPhone's permission to play sound for the next steps
+  function prime() { ensureAudio(); gateTo(0); try { const q = vid.play(); if (q && q.catch) q.catch(() => {}); vid.pause(); } catch (e) {} }
+  async function playFrom(t) {
+    gateTo(0); vid.pause();
+    await seekTo(t);
+    gateTo(1);           // the jump is done: the sound can start with the image
+    await vid.play();
+    await waitPlaying();
+  }
+  async function resumePlay() {   // after the puck: the jump was made while paused
+    if (vid.seeking) await new Promise(r => { vid.addEventListener('seeked', r, { once: true }); setTimeout(r, 1500); });
+    gateTo(1); await vid.play(); await waitPlaying();
   }
 
   /* =========================================================
@@ -1891,10 +1965,10 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
   const slug = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
   function lock(v) { $('#btnExport').disabled = v || !clipReady; $('#bar').hidden = !v; $('#cancelRow').hidden = !v; }
 
-  $('#btnExport').onclick = () => {
+  $('#btnExport').onclick = async () => {
     if (!clipReady || rec) return;
     if (!window.MediaRecorder || !cv.captureStream) { setMsg('Ce navigateur ne sait pas exporter. Sur iPhone, il faut iOS 14.5 ou plus récent.'); return; }
-    ensureAudio();
+    prime();
     $('#result').hidden = true; cancelled = false; lock(true);
     try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => wake = w).catch(() => {}); } catch (e) {}
     chosenType = pickType();
@@ -1914,14 +1988,26 @@ details.more summary{cursor:pointer;color:var(--accent);font-size:13px;font-weig
     };
     rec = r;
     vid.pause(); SEQ = null;
-    r.start(250);
-    let p;
-    if (D.tr.on) p = startSequence(); else { vid.currentTime = A(); p = vid.play(); }
-    if (p && p.catch) p.catch(err => { setMsg('La lecture a été bloquée par le navigateur (' + esc(err.name || err) + '). Touchez à nouveau « Exporter ».'); cancelled = true; r.state !== 'inactive' && r.stop(); });
+    setMsg('Préparation de l’export…');
+    try {
+      // first frame and first sound at the exact start: jump, wait, play, then record
+      gateTo(0); await seekTo(D.tr.on ? hookStart() : A());
+      if (cancelled) { rec = null; lock(false); return; }
+      if (D.tr.on) SEQ = { phase:'hook', s0:0, cut:false, resumed:false };
+      r.start(250);        // recording starts on the exact first image (still, silent)…
+      await new Promise(z => setTimeout(z, 150));   // …lets the recorder's sound wake up, then the clip starts
+      if (cancelled) return;
+      gateTo(1);
+      await vid.play(); await waitPlaying();
+    } catch (err) {
+      SEQ = null; rec = null; lock(false);
+      setMsg('La lecture a été bloquée par le navigateur (' + esc(err.name || err) + '). Touchez à nouveau « Exporter ».');
+      return;
+    }
     vid.addEventListener('ended', function onEnd() { if (SEQ || D.tr.end) return; vid.removeEventListener('ended', onEnd); r.state !== 'inactive' && r.stop(); });
     setMsg('Export en cours… la vidéo défile en temps réel. Gardez l’écran allumé.');
   };
-  $('#btnCancel').onclick = () => { if (!rec) return; cancelled = true; SEQ = null; vid.pause(); rec.state !== 'inactive' && rec.stop(); };
+  $('#btnCancel').onclick = () => { if (!rec) return; cancelled = true; SEQ = null; vid.pause(); if (rec.state !== 'inactive') rec.stop(); else { rec = null; lock(false); setMsg('Export annulé.'); } };
 
   function finish(blob, ext, nAudioTracks) {
     rec = null; lock(false);
